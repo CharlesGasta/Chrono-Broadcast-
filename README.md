@@ -104,6 +104,20 @@ L'interface affiche ou permet de configurer les paramètres suivants :
 | Adresse MAC | Oui |
 | AP de secours | Oui |
 
+## Veille automatique
+
+La télécommande peut maintenant passer automatiquement en **Light Sleep** après une durée d'inactivité configurable depuis son interface Web :
+
+- **Jamais**
+- délai configurable en **minutes**
+- délai configurable en **heures**
+
+Aucune modification du câblage du bouton n'est nécessaire : le bouton existant sur **D5 / GPIO14** est utilisé comme source de réveil. Lorsqu'elle dort, un appui sur PLAY / PAUSE réveille la télécommande et ce même appui est envoyé comme commande PLAY / PAUSE.
+
+Le point d'accès de secours reste prioritaire : la télécommande ne s'endort pas lorsqu'elle est en mode `CARAC-REMOTE-SETUP`, afin de conserver l'accès aux réglages réseau.
+
+La veille utilisée est **Light Sleep**, et non Deep Sleep, car l'ESP8266 permet le réveil GPIO en Light Sleep sur GPIO14 sans modifier le câblage. Le Wi-Fi et l'interface Web sont indisponibles pendant la veille et reviennent après le réveil.
+
 ## Batterie
 
 La batterie LiPo 1S est mesurée sur `A0` à travers un pont diviseur :
