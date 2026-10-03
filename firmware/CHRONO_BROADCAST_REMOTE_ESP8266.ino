@@ -463,8 +463,22 @@ void startFallbackAP() {
   flashLED(5, 70, 70);
 }
 
+void stopFallbackAP() {
+  if (!apMode) return;
+
+  dnsServer.stop();
+  WiFi.softAPdisconnect(true);
+  apMode = false;
+
+  Serial.println("Mode secours Wi-Fi arrete");
+}
+
 void maintainWifi() {
   if (WiFi.status() == WL_CONNECTED) {
+    if (apMode) {
+      stopFallbackAP();
+    }
+
     startMdns();
     return;
   }
@@ -547,6 +561,33 @@ void handleStatus() {
 
   json += ",\"network_mode\":\"";
   json += config.dhcp ? "DHCP" : "STATIC";
+  json += "\"";
+
+  json += ",\"mdns_enabled\":";
+  json += config.mdnsEnabled ? "true" : "false";
+
+  json += ",\"configured_static_ip\":\"";
+  json += jsonEscape(String(config.staticIp));
+  json += "\"";
+
+  json += ",\"configured_gateway\":\"";
+  json += jsonEscape(String(config.gateway));
+  json += "\"";
+
+  json += ",\"configured_subnet\":\"";
+  json += jsonEscape(String(config.subnet));
+  json += "\"";
+
+  json += ",\"configured_dns1\":\"";
+  json += jsonEscape(String(config.dns1));
+  json += "\"";
+
+  json += ",\"configured_dns2\":\"";
+  json += jsonEscape(String(config.dns2));
+  json += "\"";
+
+  json += ",\"ap_ssid\":\"";
+  json += jsonEscape(String(config.apSsid));
   json += "\"";
 
   json += ",\"ssid\":\"";
@@ -841,7 +882,13 @@ const load=async()=>{
       e('cfgSsid').value=s.configured_ssid||'';
       e('cfgHostname').value=s.hostname||'carac-remote';
       e('mode').value=s.network_mode==='STATIC'?'static':'dhcp';
-      e('cfgMdns').checked=true;
+      e('cfgStaticIp').value=s.configured_static_ip||'192.168.1.90';
+      e('cfgGateway').value=s.configured_gateway||'192.168.1.1';
+      e('cfgSubnet').value=s.configured_subnet||'255.255.255.0';
+      e('cfgDns1').value=s.configured_dns1||'1.1.1.1';
+      e('cfgDns2').value=s.configured_dns2||'8.8.8.8';
+      e('cfgApSsid').value=s.ap_ssid||'CARAC-REMOTE-SETUP';
+      e('cfgMdns').checked=!!s.mdns_enabled;
       e('cfgSsid').dataset.loaded='1';
       toggleStatic();
       e('mdnsPreview').textContent=(e('cfgHostname').value||'carac-remote')+'.local';
