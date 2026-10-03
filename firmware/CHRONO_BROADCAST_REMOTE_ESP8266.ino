@@ -786,28 +786,28 @@ Activer mDNS (<span id="mdnsPreview">carac-remote.local</span>)
 </div>
 
 <script>
-function e(id){return document.getElementById(id)}
-async function post(url){
+const e=(id)=>document.getElementById(id);
+const post=async(url)=>{
   try{await fetch(url,{method:'POST'});setTimeout(load,300)}
   catch(err){alert('Commande impossible')}
 }
-function fmtUptime(s){
+const fmtUptime=(s)=>{
   s=Number(s)||0;
   const d=Math.floor(s/86400);s%=86400;
   const h=Math.floor(s/3600);s%=3600;
   const m=Math.floor(s/60);
   return(d?d+'j ':'')+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
 }
-function batteryColor(p){
+const batteryColor=(p)=>{
   if(p<=15)return'#ff4d5a';
   if(p<=35)return'#f0a528';
   return'#39d879';
 }
-function toggleStatic(){
+const toggleStatic=()=>{
   e('staticFields').classList.toggle('hidden',e('mode').value!=='static');
 }
 e('cfgHostname').addEventListener('input',()=>{e('mdnsPreview').textContent=(e('cfgHostname').value||'carac-remote')+'.local'});
-async function load(){
+const load=async()=>{
   try{
     const r=await fetch('/status?ts='+Date.now(),{cache:'no-store'});
     const s=await r.json();
