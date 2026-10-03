@@ -1,0 +1,140 @@
+name: Publish firmware release
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "firmware/CHRONO_BROADCAST_REMOTE_ESP8266.ino"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ESP8266 core
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://arduino.esp8266.com/stable/package_esp8266com_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp8266:esp8266
+
+      - name: Read firmware version
+        shell: bash
+        run: |
+          VERSION=$(grep -E '^#define FIRMWARE_VERSION "' firmware/CHRONO_BROADCAST_REMOTE_ESP8266.ino \
+            | sed -E 's/^#define FIRMWARE_VERSION "([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+
+          if [ -z "$VERSION" ]; then
+            echo "Unable to read FIRMWARE_VERSION"
+            exit 1
+          fi
+
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
+          echo "VERSION_FILE=$(echo "$VERSION" | tr '.' '_')" >> "$GITHUB_ENV"
+
+      - name: Compile ESP8266 firmware
+        run: |
+          mkdir -p /tmp/ChronoBroadcastRemote release build
+          cp firmware/CHRONO_BROADCAST_REMOTE_ESP8266.ino /tmp/ChronoBroadcastRemote/ChronoBroadcastRemote.ino
+
+          arduino-cli compile \
+            --fqbn esp8266:esp8266:nodemcuv2 \
+            --output-dir "$GITHUB_WORKSPACE/build" \
+            /tmp/ChronoBroadcastRemote
+
+          cp firmware/CHRONO_BROADCAST_REMOTE_ESP8266.ino \
+            "release/CHRONO_BROADCAST_REMOTE_V${VERSION_FILE}.ino"
+
+          cp build/ChronoBroadcastRemote.ino.bin \
+            "release/CHRONO_BROADCAST_REMOTE_V${VERSION_FILE}.bin"
+
+          cp build/ChronoBroadcastRemote.ino.bin \
+            "release/CHRONO_BROADCAST_REMOTE_OTA.bin"
+
+      - name: Build complete package
+        run: |
+          cp README.md release/
+          cp CHANGELOG.md release/
+
+          cat > release/LISEZ-MOI.txt <<EOF
+          CHRONO BROADCAST REMOTE V${VERSION}
+
+          Carte :
+          NodeMCU 1.0 / ESP-12E
+
+          FQBN :
+          esp8266:esp8266:nodemcuv2
+
+          Mise a jour OTA :
+          CHRONO_BROADCAST_REMOTE_OTA.bin
+
+          Le fichier OTA peut etre envoye depuis :
+          http://IP_DE_LA_TELECOMMANDE/update
+
+          Si le Wi-Fi principal est introuvable :
+          CARAC-REMOTE-SETUP
+          http://192.168.4.1
+          EOF
+
+          cd release
+          zip -r "../CHRONO_BROADCAST_REMOTE_V${VERSION_FILE}_COMPLETE.zip" .
+          cd ..
+
+      - name: Build release notes
+        run: |
+          cat > release_notes.md <<EOF
+          ## Chrono Broadcast Remote V${VERSION}
+
+          Firmware ESP8266 compile automatiquement par GitHub Actions.
+
+          **Carte : NodeMCU 1.0 / ESP-12E**
+
+          ### OTA
+
+          Telecharger **CHRONO_BROADCAST_REMOTE_OTA.bin** puis ouvrir :
+
+          `http://IP_DE_LA_TELECOMMANDE/update`
+
+          ### V1.8.0
+
+          - DHCP ou IP fixe
+          - IP / gateway / subnet / DNS1 / DNS2 configurables
+          - hostname + mDNS
+          - portail Wi-Fi de secours
+          - diagnostic reseau complet
+          - batterie LiPo
+          - OTA navigateur + ArduinoOTA
+          EOF
+
+      - name: Create or update GitHub Release
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              "release/CHRONO_BROADCAST_REMOTE_OTA.bin" \
+              "release/CHRONO_BROADCAST_REMOTE_V${VERSION_FILE}.bin" \
+              "release/CHRONO_BROADCAST_REMOTE_V${VERSION_FILE}.ino" \
+              "CHRONO_BROADCAST_REMOTE_V${VERSION_FILE}_COMPLETE.zip" \
+              --clobber
+          else
+            gh release create "$TAG" \
+              "release/CHRONO_BROADCAST_REMOTE_OTA.bin" \
+              "release/CHRONO_BROADCAST_REMOTE_V${VERSION_FILE}.bin" \
+              "release/CHRONO_BROADCAST_REMOTE_V${VERSION_FILE}.ino" \
+              "CHRONO_BROADCAST_REMOTE_V${VERSION_FILE}_COMPLETE.zip" \
+              --target "$GITHUB_SHA" \
+              --title "Chrono Broadcast Remote V${VERSION}" \
+              --notes-file release_notes.md \
+              --latest
+          fi
