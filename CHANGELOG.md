@@ -1,5 +1,16 @@
 # Changelog
 
+## V1.9.0
+
+- Added configurable automatic Light Sleep.
+- Sleep can be disabled or configured in minutes/hours from the remote Web UI.
+- D5 / GPIO14 is used as the wake source; no additional wiring is required.
+- The wake-up button press is immediately sent as PLAY / PAUSE.
+- Rescue AP mode prevents automatic sleep so network recovery remains accessible.
+- Existing V1.8.0 network configuration is migrated automatically.
+- OTA and ArduinoOTA remain available while the remote is awake.
+
+
 ## V1.8.0
 
 - Added DHCP / static IPv4 selection.
