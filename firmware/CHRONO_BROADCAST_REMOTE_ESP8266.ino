@@ -5,13 +5,16 @@
 #include <ArduinoOTA.h>
 #include <DNSServer.h>
 #include <EEPROM.h>
+extern "C" {
+#include "user_interface.h"
+}
 
-#define FIRMWARE_VERSION "1.8.0"
+#define FIRMWARE_VERSION "1.9.0"
 // Public build: DHCP/static networking + OTA release
 
 // ======================================================
 // CHRONO BROADCAST / CARAC TIMER REMOTE — ESP8266
-// V1.8.0
+// V1.9.0
 //
 // - Short press: PLAY / PAUSE
 // - Long press 1.5 s: RESET
@@ -23,6 +26,7 @@
 // - Web diagnostics and settings
 // - Browser OTA + ArduinoOTA
 // - /status API compatible with the CARAC TIMER control UI
+// - Configurable automatic light-sleep, wake on PLAY/PAUSE button
 // ======================================================
 
 #define BUTTON_PIN D5
@@ -48,13 +52,34 @@ const float BATTERY_CALIBRATION = 1.114f;
 
 const uint16_t EEPROM_SIZE = 512;
 const uint32_t CONFIG_MAGIC = 0x43425232; // CBR2
-const uint16_t CONFIG_SCHEMA = 2;
+const uint16_t CONFIG_SCHEMA = 3;
 const uint32_t LEGACY_WIFI_MAGIC = 0x43415243; // V1.7.x "CARC"
 
 struct LegacyWifiConfig {
   uint32_t magic;
   char ssid[33];
   char password[65];
+};
+
+struct NetworkConfigV2 {
+  uint32_t magic;
+  uint16_t schema;
+
+  char ssid[33];
+  char password[65];
+  char hostname[33];
+
+  uint8_t dhcp;
+  uint8_t mdnsEnabled;
+
+  char staticIp[16];
+  char gateway[16];
+  char subnet[16];
+  char dns1[16];
+  char dns2[16];
+
+  char apSsid[33];
+  char apPassword[65];
 };
 
 struct NetworkConfig {
@@ -76,6 +101,8 @@ struct NetworkConfig {
 
   char apSsid[33];
   char apPassword[65];
+
+  uint32_t sleepTimeoutSeconds; // 0 = never
 };
 
 NetworkConfig config;
@@ -87,6 +114,8 @@ DNSServer dnsServer;
 bool apMode = false;
 bool mdnsStarted = false;
 unsigned long lastWifiRetry = 0;
+unsigned long lastActivityAt = 0;
+volatile bool sleepWakeTriggered = false;
 
 bool timerRunning = false;
 bool lastRawButton = HIGH;
@@ -139,6 +168,7 @@ void setDefaults() {
 
   copyString(config.apSsid, sizeof(config.apSsid), "CARAC-REMOTE-SETUP");
   copyString(config.apPassword, sizeof(config.apPassword), "caracremote");
+  config.sleepTimeoutSeconds = 0;
 }
 
 void saveConfig() {
@@ -153,6 +183,33 @@ void loadConfig() {
   EEPROM.get(0, config);
 
   if (config.magic == CONFIG_MAGIC && config.schema == CONFIG_SCHEMA) {
+    return;
+  }
+
+  NetworkConfigV2 oldV2;
+  EEPROM.get(0, oldV2);
+
+  if (oldV2.magic == CONFIG_MAGIC && oldV2.schema == 2) {
+    setDefaults();
+
+    copyString(config.ssid, sizeof(config.ssid), String(oldV2.ssid));
+    copyString(config.password, sizeof(config.password), String(oldV2.password));
+    copyString(config.hostname, sizeof(config.hostname), String(oldV2.hostname));
+
+    config.dhcp = oldV2.dhcp;
+    config.mdnsEnabled = oldV2.mdnsEnabled;
+
+    copyString(config.staticIp, sizeof(config.staticIp), String(oldV2.staticIp));
+    copyString(config.gateway, sizeof(config.gateway), String(oldV2.gateway));
+    copyString(config.subnet, sizeof(config.subnet), String(oldV2.subnet));
+    copyString(config.dns1, sizeof(config.dns1), String(oldV2.dns1));
+    copyString(config.dns2, sizeof(config.dns2), String(oldV2.dns2));
+
+    copyString(config.apSsid, sizeof(config.apSsid), String(oldV2.apSsid));
+    copyString(config.apPassword, sizeof(config.apPassword), String(oldV2.apPassword));
+
+    config.sleepTimeoutSeconds = 0;
+    saveConfig();
     return;
   }
 
@@ -503,6 +560,93 @@ void maintainWifi() {
   }
 }
 
+
+void markActivity() {
+  lastActivityAt = millis();
+}
+
+void lightSleepWakeCallback() {
+  sleepWakeTriggered = true;
+}
+
+bool autoSleepDue() {
+  if (config.sleepTimeoutSeconds == 0) return false;
+  if (apMode) return false;
+  if (WiFi.status() != WL_CONNECTED) return false;
+
+  const unsigned long timeoutMs = config.sleepTimeoutSeconds * 1000UL;
+  return millis() - lastActivityAt >= timeoutMs;
+}
+
+void enterAutomaticLightSleep() {
+  Serial.println();
+  Serial.println("==================================");
+  Serial.println(" VEILLE AUTOMATIQUE");
+  Serial.println(" Appuyer sur PLAY/PAUSE pour reveiller");
+  Serial.println("==================================");
+  Serial.flush();
+
+  stopMdns();
+  server.stop();
+
+  WiFi.mode(WIFI_OFF);
+  delay(10);
+
+  sleepWakeTriggered = false;
+
+  wifi_fpm_set_sleep_type(LIGHT_SLEEP_T);
+  gpio_pin_wakeup_enable(GPIO_ID_PIN(14), GPIO_PIN_INTR_LOLEVEL);
+  wifi_fpm_set_wakeup_cb(lightSleepWakeCallback);
+  wifi_fpm_open();
+
+  ledOff();
+
+  wifi_fpm_do_sleep(0xFFFFFFF);
+  delay(10);
+
+  wifi_fpm_close();
+  gpio_pin_wakeup_disable();
+
+  Serial.println("Reveil par bouton");
+
+  // The wake-up press is itself the PLAY / PAUSE command.
+  commandToggle();
+
+  // Consume this press so it is not processed twice by handleButton().
+  while (digitalRead(BUTTON_PIN) == LOW) {
+    delay(5);
+  }
+
+  lastRawButton = HIGH;
+  stableButton = HIGH;
+  longPressTriggered = false;
+  lastDebounceTime = millis();
+
+  applyNetworkConfig();
+  WiFi.begin(config.ssid, config.password);
+
+  const unsigned long started = millis();
+
+  while (
+    WiFi.status() != WL_CONNECTED &&
+    millis() - started < WIFI_CONNECT_TIMEOUT_MS
+  ) {
+    delay(50);
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    startMdns();
+    Serial.print("Wi-Fi reconnecte : ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("Wi-Fi non reconnecte, mode secours...");
+    startFallbackAP();
+  }
+
+  server.begin();
+  markActivity();
+}
+
 void addCorsHeaders() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.sendHeader(
@@ -641,6 +785,12 @@ void handleStatus() {
 
   json += ",\"battery_percent\":";
   json += String(batteryPercent);
+
+  json += ",\"sleep_timeout_s\":";
+  json += String(config.sleepTimeoutSeconds);
+
+  json += ",\"sleep_enabled\":";
+  json += config.sleepTimeoutSeconds > 0 ? "true" : "false";
 
   json += ",\"firmware\":\"";
   json += FIRMWARE_VERSION;
@@ -816,6 +966,35 @@ Activer mDNS (<span id="mdnsPreview">carac-remote.local</span>)
 </section>
 
 <section class="card" style="margin-top:12px">
+<h2>Veille automatique</h2>
+<form method="POST" action="/power/save">
+<div class="two">
+<div>
+<label>Mode</label>
+<select name="sleep_mode" id="sleepMode" onchange="toggleSleepFields()">
+<option value="never">Jamais</option>
+<option value="timer">Après une durée d'inactivité</option>
+</select>
+</div>
+<div id="sleepFields">
+<label>Délai</label>
+<div class="two">
+<input name="sleep_value" id="sleepValue" type="number" min="1" max="1440" value="5">
+<select name="sleep_unit" id="sleepUnit">
+<option value="minutes">minute(s)</option>
+<option value="hours">heure(s)</option>
+</select>
+</div>
+</div>
+</div>
+<div class="actions" style="margin-top:16px">
+<button class="primary" type="submit">ENREGISTRER</button>
+</div>
+</form>
+<p><small>La veille coupe le Wi-Fi et met l'ESP8266 en Light Sleep. Le bouton PLAY / PAUSE sur D5 / GPIO14 réveille la télécommande et cet appui est immédiatement envoyé comme commande PLAY / PAUSE. Aucun câblage supplémentaire n'est nécessaire.</small></p>
+</section>
+
+<section class="card" style="margin-top:12px">
 <h2>Mise à jour firmware sans USB</h2>
 <p>Envoyer le fichier <code>CHRONO_BROADCAST_REMOTE_OTA.bin</code> depuis la page OTA.</p>
 <div class="actions">
@@ -846,6 +1025,11 @@ const batteryColor=(p)=>{
 }
 const toggleStatic=()=>{
   e('staticFields').classList.toggle('hidden',e('mode').value!=='static');
+}
+const toggleSleepFields=()=>{
+  e('sleepFields').style.opacity=e('sleepMode').value==='timer'?'1':'.35';
+  e('sleepValue').disabled=e('sleepMode').value!=='timer';
+  e('sleepUnit').disabled=e('sleepMode').value!=='timer';
 }
 e('cfgHostname').addEventListener('input',()=>{e('mdnsPreview').textContent=(e('cfgHostname').value||'carac-remote')+'.local'});
 const load=async()=>{
@@ -889,8 +1073,20 @@ const load=async()=>{
       e('cfgDns2').value=s.configured_dns2||'8.8.8.8';
       e('cfgApSsid').value=s.ap_ssid||'CARAC-REMOTE-SETUP';
       e('cfgMdns').checked=!!s.mdns_enabled;
+      const sleepSeconds=Number(s.sleep_timeout_s)||0;
+      e('sleepMode').value=sleepSeconds>0?'timer':'never';
+
+      if(sleepSeconds>0 && sleepSeconds%3600===0){
+        e('sleepUnit').value='hours';
+        e('sleepValue').value=Math.max(1,Math.round(sleepSeconds/3600));
+      }else{
+        e('sleepUnit').value='minutes';
+        e('sleepValue').value=Math.max(1,Math.round(sleepSeconds/60)||5);
+      }
+
       e('cfgSsid').dataset.loaded='1';
       toggleStatic();
+      toggleSleepFields();
       e('mdnsPreview').textContent=(e('cfgHostname').value||'carac-remote')+'.local';
     }
   }catch(err){
@@ -899,6 +1095,7 @@ const load=async()=>{
   }
 }
 toggleStatic();
+toggleSleepFields();
 setInterval(load,1000);
 load();
 </script>
@@ -907,6 +1104,7 @@ load();
 )HTML";
 
 void handleRoot() {
+  markActivity();
   addCorsHeaders();
   server.send_P(200, "text/html; charset=utf-8", PAGE_HTML);
 }
@@ -917,6 +1115,8 @@ bool validIPv4(const String& value) {
 }
 
 void handleNetworkSave() {
+  markActivity();
+
   if (!server.hasArg("ssid")) {
     server.send(400, "text/plain", "SSID manquant");
     return;
@@ -1015,19 +1215,49 @@ void handleWifiClear() {
 }
 
 void handleTestToggle() {
+  markActivity();
   commandToggle();
   server.send(200, "application/json", "{\"ok\":true}");
 }
 
 void handleTestReset() {
+  markActivity();
   commandReset();
   server.send(200, "application/json", "{\"ok\":true}");
 }
 
 void handleRestart() {
+  markActivity();
   server.send(200, "application/json", "{\"ok\":true}");
   delay(500);
   ESP.restart();
+}
+
+void handlePowerSave() {
+  const String mode = server.arg("sleep_mode");
+
+  if (mode == "never") {
+    config.sleepTimeoutSeconds = 0;
+  } else {
+    long value = server.arg("sleep_value").toInt();
+    const String unit = server.arg("sleep_unit");
+
+    if (value < 1) value = 1;
+    if (value > 1440) value = 1440;
+
+    if (unit == "hours") {
+      if (value > 168) value = 168;
+      config.sleepTimeoutSeconds = (uint32_t)value * 3600UL;
+    } else {
+      config.sleepTimeoutSeconds = (uint32_t)value * 60UL;
+    }
+  }
+
+  saveConfig();
+  markActivity();
+
+  server.sendHeader("Location", "/", true);
+  server.send(303, "text/plain", "");
 }
 
 void setupWebServer() {
@@ -1038,6 +1268,7 @@ void setupWebServer() {
   server.on("/api/test/toggle", HTTP_POST, handleTestToggle);
   server.on("/api/test/reset", HTTP_POST, handleTestReset);
   server.on("/api/restart", HTTP_POST, handleRestart);
+  server.on("/power/save", HTTP_POST, handlePowerSave);
 
   httpUpdater.setup(&server, "/update");
 
@@ -1130,6 +1361,7 @@ void setup() {
   }
 
   flashLED(2, 120, 100);
+  markActivity();
 }
 
 void loop() {
@@ -1146,6 +1378,10 @@ void loop() {
 
   if (mdnsStarted) {
     MDNS.update();
+  }
+
+  if (autoSleepDue()) {
+    enterAutomaticLightSleep();
   }
 
   yield();
