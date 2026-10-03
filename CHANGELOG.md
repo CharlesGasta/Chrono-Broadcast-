@@ -1,0 +1,32 @@
+# Changelog
+
+## V1.8.0
+
+- Added DHCP / static IPv4 selection.
+- Added configurable static IP, gateway, subnet mask, DNS1 and DNS2.
+- Added configurable hostname and mDNS.
+- Added network status: RSSI, channel, BSSID, MAC, IP, gateway, subnet and DNS.
+- Added configurable rescue AP SSID and password.
+- Preserved automatic fallback AP and captive portal.
+- Added migration from the V1.7.x EEPROM Wi-Fi structure.
+- Preserved browser OTA and ArduinoOTA.
+- Preserved battery monitoring with calibration factor 1.114.
+- Preserved short press PLAY / PAUSE and 1.5 s long press RESET.
+- Removed personal Wi-Fi credentials from compiled defaults for the public repository.
+
+## V1.7.1
+
+- Battery calibration corrected from 3.68 V to a 4.10 V multimeter reference.
+- Calibration factor set to 1.114.
+
+## V1.7.0
+
+- Added browser OTA.
+- Added ArduinoOTA.
+- Added automatic rescue Wi-Fi AP.
+- Added persistent Wi-Fi configuration.
+- Added standalone remote Web interface.
+
+## V1.6.x
+
+- Initial integration of the physical ESP8266 remote with the CARAC TIMER control interface.
