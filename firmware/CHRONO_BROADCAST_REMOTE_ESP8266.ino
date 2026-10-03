@@ -7,6 +7,7 @@
 #include <EEPROM.h>
 
 #define FIRMWARE_VERSION "1.8.0"
+// Public build: DHCP/static networking + OTA release
 
 // ======================================================
 // CHRONO BROADCAST / CARAC TIMER REMOTE — ESP8266
