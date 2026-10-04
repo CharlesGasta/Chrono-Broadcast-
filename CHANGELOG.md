@@ -1,5 +1,14 @@
 # Changelog
 
+## V1.10.1
+
+- Battery logger now keeps running independently of Wi-Fi connectivity.
+- Logger state is persisted in LittleFS so an unexpected shutdown or reboot does not invalidate the discharge test.
+- If the remote restarts while a test was armed, logging resumes automatically.
+- Each CSV row is flushed to flash immediately to minimize data loss if the battery dies.
+- Added a boot-segment column so samples recorded across a reboot can be distinguished.
+- Stopping or clearing the logger explicitly disarms automatic resume.
+
 ## V1.10.0
 
 - Added a temporary battery-discharge logger stored in LittleFS.
