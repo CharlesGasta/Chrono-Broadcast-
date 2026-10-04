@@ -10,12 +10,12 @@ extern "C" {
 #include "user_interface.h"
 }
 
-#define FIRMWARE_VERSION "1.10.0"
+#define FIRMWARE_VERSION "1.10.1"
 // Public build: battery logger + charge detection + sleep diagnostics
 
 // ======================================================
 // CHRONO BROADCAST / CARAC TIMER REMOTE — ESP8266
-// V1.10.0
+// V1.10.1
 //
 // - Short press: PLAY / PAUSE
 // - Long press 1.5 s: RESET
@@ -30,6 +30,7 @@ extern "C" {
 // - Configurable automatic light-sleep, wake on PLAY/PAUSE button
 // - Persistent battery discharge logger (CSV in LittleFS)
 // - Automatic charging-state detection; percentage hidden while charging
+// - Battery logger survives Wi-Fi loss and unexpected power loss / reboot
 // ======================================================
 
 #define BUTTON_PIN D5
@@ -47,6 +48,7 @@ const float CHARGE_START_RISE_V = 0.025f;
 const uint8_t CHARGE_START_CONFIRM_SAMPLES = 2;
 const float CHARGE_STOP_DROP_V = 0.010f;
 const char* BATTERY_LOG_PATH = "/battery-log.csv";
+const char* BATTERY_LOG_ARMED_PATH = "/battery-log-armed.flag";
 
 // Battery divider:
 // Battery + after switch -> 100k -> A0 -> 100k -> GND
@@ -149,6 +151,7 @@ bool batteryLoggerActive = false;
 unsigned long batteryLoggerStartedAt = 0;
 unsigned long lastBatteryLogAt = 0;
 uint32_t batteryLogSamples = 0;
+uint32_t batteryLogBootSegment = 0;
 
 struct SocPoint {
   uint8_t percent;
@@ -365,8 +368,54 @@ void ensureBatteryLogFile() {
   File f = LittleFS.open(BATTERY_LOG_PATH, "w");
   if (!f) return;
 
-  f.println("uptime_s,elapsed_s,adc_raw,voltage_v,percent,charging");
+  f.println("boot_segment,uptime_s,elapsed_s,adc_raw,voltage_v,percent,charging");
+  f.flush();
   f.close();
+}
+
+void setBatteryLoggerArmed(bool armed) {
+  if (armed) {
+    File f = LittleFS.open(BATTERY_LOG_ARMED_PATH, "w");
+    if (f) {
+      f.print("1");
+      f.flush();
+      f.close();
+    }
+  } else if (LittleFS.exists(BATTERY_LOG_ARMED_PATH)) {
+    LittleFS.remove(BATTERY_LOG_ARMED_PATH);
+  }
+}
+
+bool isBatteryLoggerArmed() {
+  return LittleFS.exists(BATTERY_LOG_ARMED_PATH);
+}
+
+uint32_t countBatteryLogSamples() {
+  if (!LittleFS.exists(BATTERY_LOG_PATH)) return 0;
+
+  File f = LittleFS.open(BATTERY_LOG_PATH, "r");
+  if (!f) return 0;
+
+  uint32_t lines = 0;
+  while (f.available()) {
+    if (f.read() == '\n') lines++;
+    yield();
+  }
+  f.close();
+
+  return lines > 0 ? lines - 1 : 0;
+}
+
+void recoverBatteryLoggerIfArmed() {
+  if (!isBatteryLoggerArmed()) return;
+
+  batteryLoggerActive = true;
+  batteryLoggerStartedAt = millis();
+  lastBatteryLogAt = 0;
+  batteryLogSamples = countBatteryLogSamples();
+  batteryLogBootSegment++;
+
+  Serial.println("[BATTERY LOG] reprise automatique apres redemarrage/coupure");
 }
 
 void appendBatteryLog() {
@@ -383,6 +432,8 @@ void appendBatteryLog() {
     ? (now - batteryLoggerStartedAt) / 1000UL
     : 0;
 
+  f.print(batteryLogBootSegment);
+  f.print(',');
   f.print(now / 1000UL);
   f.print(',');
   f.print(elapsedS);
@@ -394,6 +445,7 @@ void appendBatteryLog() {
   f.print(batteryPercent);
   f.print(',');
   f.println(batteryCharging ? 1 : 0);
+  f.flush();
   f.close();
 
   batteryLogSamples++;
@@ -416,10 +468,12 @@ void updateBatteryLogger() {
 
 void startBatteryLogger() {
   ensureBatteryLogFile();
+  setBatteryLoggerArmed(true);
   batteryLoggerActive = true;
   batteryLoggerStartedAt = millis();
   lastBatteryLogAt = 0;
-  batteryLogSamples = 0;
+  batteryLogSamples = countBatteryLogSamples();
+  batteryLogBootSegment++;
   appendBatteryLog();
 
   Serial.println("[BATTERY LOG] demarre");
@@ -427,6 +481,7 @@ void startBatteryLogger() {
 
 void stopBatteryLogger() {
   batteryLoggerActive = false;
+  setBatteryLoggerArmed(false);
   Serial.println("[BATTERY LOG] arrete");
 }
 
@@ -1438,6 +1493,7 @@ void handleBatteryLogClear() {
   if (LittleFS.exists(BATTERY_LOG_PATH)) {
     LittleFS.remove(BATTERY_LOG_PATH);
   }
+  setBatteryLoggerArmed(false);
 
   batteryLogSamples = 0;
   lastBatteryLogAt = 0;
@@ -1564,6 +1620,7 @@ void setup() {
     Serial.println("[LittleFS] erreur de montage");
   } else {
     ensureBatteryLogFile();
+    recoverBatteryLoggerIfArmed();
   }
 
   Serial.println();
