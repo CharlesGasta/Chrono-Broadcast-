@@ -5,16 +5,17 @@
 #include <ArduinoOTA.h>
 #include <DNSServer.h>
 #include <EEPROM.h>
+#include <LittleFS.h>
 extern "C" {
 #include "user_interface.h"
 }
 
-#define FIRMWARE_VERSION "1.9.0"
-// Public build: DHCP/static networking + OTA release
+#define FIRMWARE_VERSION "1.10.0"
+// Public build: battery logger + charge detection + sleep diagnostics
 
 // ======================================================
 // CHRONO BROADCAST / CARAC TIMER REMOTE — ESP8266
-// V1.9.0
+// V1.10.0
 //
 // - Short press: PLAY / PAUSE
 // - Long press 1.5 s: RESET
@@ -27,6 +28,8 @@ extern "C" {
 // - Browser OTA + ArduinoOTA
 // - /status API compatible with the CARAC TIMER control UI
 // - Configurable automatic light-sleep, wake on PLAY/PAUSE button
+// - Persistent battery discharge logger (CSV in LittleFS)
+// - Automatic charging-state detection; percentage hidden while charging
 // ======================================================
 
 #define BUTTON_PIN D5
@@ -39,6 +42,11 @@ const unsigned long WIFI_CONNECT_TIMEOUT_MS = 15000;
 const unsigned long WIFI_RETRY_INTERVAL_MS = 30000;
 const unsigned long BATTERY_SAMPLE_INTERVAL_MS = 2000;
 const uint8_t BATTERY_SAMPLE_COUNT = 24;
+const unsigned long BATTERY_LOG_INTERVAL_MS = 60000UL;
+const float CHARGE_START_RISE_V = 0.025f;
+const uint8_t CHARGE_START_CONFIRM_SAMPLES = 2;
+const float CHARGE_STOP_DROP_V = 0.010f;
+const char* BATTERY_LOG_PATH = "/battery-log.csv";
 
 // Battery divider:
 // Battery + after switch -> 100k -> A0 -> 100k -> GND
@@ -130,6 +138,17 @@ unsigned long commandCounter = 0;
 float batteryVoltage = 0.0f;
 uint8_t batteryPercent = 0;
 unsigned long lastBatterySample = 0;
+uint16_t batteryAdcRaw = 0;
+
+bool batteryCharging = false;
+float chargeBaselineVoltage = 0.0f;
+float chargePeakVoltage = 0.0f;
+uint8_t chargeRiseConfirmCount = 0;
+
+bool batteryLoggerActive = false;
+unsigned long batteryLoggerStartedAt = 0;
+unsigned long lastBatteryLogAt = 0;
+uint32_t batteryLogSamples = 0;
 
 struct SocPoint {
   uint8_t percent;
@@ -272,8 +291,52 @@ float readBatteryVoltageNow() {
   }
 
   const float raw = (float)total / BATTERY_SAMPLE_COUNT;
+  batteryAdcRaw = (uint16_t)lroundf(raw);
   const float a0Voltage = (raw / 1023.0f) * A0_FULL_SCALE_V;
   return a0Voltage * DIVIDER_RATIO * BATTERY_CALIBRATION;
+}
+
+void updateChargeDetection() {
+  if (batteryVoltage <= 0.1f) return;
+
+  if (chargeBaselineVoltage <= 0.1f) {
+    chargeBaselineVoltage = batteryVoltage;
+    chargePeakVoltage = batteryVoltage;
+    return;
+  }
+
+  if (!batteryCharging) {
+    if (batteryVoltage < chargeBaselineVoltage) {
+      chargeBaselineVoltage = batteryVoltage;
+    }
+
+    if (batteryVoltage - chargeBaselineVoltage >= CHARGE_START_RISE_V) {
+      if (chargeRiseConfirmCount < 255) chargeRiseConfirmCount++;
+
+      if (chargeRiseConfirmCount >= CHARGE_START_CONFIRM_SAMPLES) {
+        batteryCharging = true;
+        chargePeakVoltage = batteryVoltage;
+        chargeRiseConfirmCount = 0;
+        Serial.println("[BATTERY] EN CHARGE");
+      }
+    } else {
+      chargeRiseConfirmCount = 0;
+    }
+
+    return;
+  }
+
+  if (batteryVoltage > chargePeakVoltage) {
+    chargePeakVoltage = batteryVoltage;
+  }
+
+  if (chargePeakVoltage - batteryVoltage >= CHARGE_STOP_DROP_V) {
+    batteryCharging = false;
+    chargeBaselineVoltage = batteryVoltage;
+    chargePeakVoltage = batteryVoltage;
+    chargeRiseConfirmCount = 0;
+    Serial.println("[BATTERY] FIN DE CHARGE");
+  }
 }
 
 void updateBattery(bool force = false) {
@@ -293,6 +356,78 @@ void updateBattery(bool force = false) {
   }
 
   batteryPercent = voltageToPercent(batteryVoltage);
+  updateChargeDetection();
+}
+
+void ensureBatteryLogFile() {
+  if (LittleFS.exists(BATTERY_LOG_PATH)) return;
+
+  File f = LittleFS.open(BATTERY_LOG_PATH, "w");
+  if (!f) return;
+
+  f.println("uptime_s,elapsed_s,adc_raw,voltage_v,percent,charging");
+  f.close();
+}
+
+void appendBatteryLog() {
+  ensureBatteryLogFile();
+
+  File f = LittleFS.open(BATTERY_LOG_PATH, "a");
+  if (!f) {
+    Serial.println("[BATTERY LOG] impossible d'ouvrir le fichier");
+    return;
+  }
+
+  const unsigned long now = millis();
+  const unsigned long elapsedS = batteryLoggerActive
+    ? (now - batteryLoggerStartedAt) / 1000UL
+    : 0;
+
+  f.print(now / 1000UL);
+  f.print(',');
+  f.print(elapsedS);
+  f.print(',');
+  f.print(batteryAdcRaw);
+  f.print(',');
+  f.print(batteryVoltage, 3);
+  f.print(',');
+  f.print(batteryPercent);
+  f.print(',');
+  f.println(batteryCharging ? 1 : 0);
+  f.close();
+
+  batteryLogSamples++;
+  lastBatteryLogAt = now;
+}
+
+void updateBatteryLogger() {
+  if (!batteryLoggerActive) return;
+
+  const unsigned long now = millis();
+
+  if (
+    batteryLogSamples == 0 ||
+    lastBatteryLogAt == 0 ||
+    now - lastBatteryLogAt >= BATTERY_LOG_INTERVAL_MS
+  ) {
+    appendBatteryLog();
+  }
+}
+
+void startBatteryLogger() {
+  ensureBatteryLogFile();
+  batteryLoggerActive = true;
+  batteryLoggerStartedAt = millis();
+  lastBatteryLogAt = 0;
+  batteryLogSamples = 0;
+  appendBatteryLog();
+
+  Serial.println("[BATTERY LOG] demarre");
+}
+
+void stopBatteryLogger() {
+  batteryLoggerActive = false;
+  Serial.println("[BATTERY LOG] arrete");
 }
 
 void commandToggle() {
@@ -571,6 +706,7 @@ void lightSleepWakeCallback() {
 
 bool autoSleepDue() {
   if (config.sleepTimeoutSeconds == 0) return false;
+  if (batteryLoggerActive) return false;
   if (apMode) return false;
   if (WiFi.status() != WL_CONNECTED) return false;
 
@@ -786,6 +922,23 @@ void handleStatus() {
   json += ",\"battery_percent\":";
   json += String(batteryPercent);
 
+  json += ",\"battery_adc_raw\":";
+  json += String(batteryAdcRaw);
+
+  json += ",\"battery_charging\":";
+  json += batteryCharging ? "true" : "false";
+
+  json += ",\"battery_log_active\":";
+  json += batteryLoggerActive ? "true" : "false";
+
+  json += ",\"battery_log_samples\":";
+  json += String(batteryLogSamples);
+
+  json += ",\"battery_log_elapsed_s\":";
+  json += batteryLoggerActive
+    ? String((millis() - batteryLoggerStartedAt) / 1000UL)
+    : String(0);
+
   json += ",\"sleep_timeout_s\":";
   json += String(config.sleepTimeoutSeconds);
 
@@ -995,6 +1148,27 @@ Activer mDNS (<span id="mdnsPreview">carac-remote.local</span>)
 </section>
 
 <section class="card" style="margin-top:12px">
+<h2>Battery Logger — calibration temporaire</h2>
+<div class="grid">
+<div>
+<div class="row"><span>État</span><strong id="batteryLogState">—</strong></div>
+<div class="row"><span>Durée</span><strong id="batteryLogElapsed">—</strong></div>
+<div class="row"><span>Échantillons</span><strong id="batteryLogSamples">—</strong></div>
+<div class="row"><span>ADC brut</span><strong id="batteryAdcRaw">—</strong></div>
+</div>
+<div>
+<p class="muted">Un point est enregistré toutes les 60 secondes dans LittleFS. Tant que le logger est actif, la veille automatique est inhibée pour permettre une décharge complète.</p>
+<div class="actions">
+<button class="primary" type="button" onclick="post('/battery-log/start')">DÉMARRER</button>
+<button type="button" onclick="post('/battery-log/stop')">ARRÊTER</button>
+<button type="button" onclick="location.href='/battery-log.csv'">TÉLÉCHARGER CSV</button>
+<button class="danger" type="button" onclick="if(confirm('Effacer le log batterie ?')) post('/battery-log/clear')">EFFACER</button>
+</div>
+</div>
+</div>
+</section>
+
+<section class="card" style="margin-top:12px">
 <h2>Mise à jour firmware sans USB</h2>
 <p>Envoyer le fichier <code>CHRONO_BROADCAST_REMOTE_OTA.bin</code> depuis la page OTA.</p>
 <div class="actions">
@@ -1045,10 +1219,22 @@ const load=async()=>{
     e('firmware').textContent='V'+s.firmware;
     e('uptime').textContent=fmtUptime(s.uptime_s);
 
-    e('batteryPct').textContent=s.battery_percent+'%';
-    e('batteryV').textContent=Number(s.battery_voltage).toFixed(2)+' V';
-    e('batteryFill').style.width=Math.max(0,Math.min(100,s.battery_percent))+'%';
-    e('batteryFill').style.background=batteryColor(s.battery_percent);
+    if(s.battery_charging){
+      e('batteryPct').textContent='EN CHARGE';
+      e('batteryV').textContent='—';
+      e('batteryFill').style.width='100%';
+      e('batteryFill').style.background='#4fa3ff';
+    }else{
+      e('batteryPct').textContent=s.battery_percent+'%';
+      e('batteryV').textContent=Number(s.battery_voltage).toFixed(2)+' V';
+      e('batteryFill').style.width=Math.max(0,Math.min(100,s.battery_percent))+'%';
+      e('batteryFill').style.background=batteryColor(s.battery_percent);
+    }
+
+    e('batteryLogState').textContent=s.battery_log_active?'ENREGISTREMENT ACTIF':'ARRÊTÉ';
+    e('batteryLogElapsed').textContent=fmtUptime(s.battery_log_elapsed_s);
+    e('batteryLogSamples').textContent=s.battery_log_samples;
+    e('batteryAdcRaw').textContent=s.battery_adc_raw;
 
     e('networkMode').textContent=s.network_mode;
     e('ssid').textContent=s.ssid||'—';
@@ -1233,6 +1419,52 @@ void handleRestart() {
   ESP.restart();
 }
 
+void handleBatteryLogStart() {
+  markActivity();
+  startBatteryLogger();
+  server.send(200, "application/json", "{\"ok\":true,\"active\":true}");
+}
+
+void handleBatteryLogStop() {
+  markActivity();
+  stopBatteryLogger();
+  server.send(200, "application/json", "{\"ok\":true,\"active\":false}");
+}
+
+void handleBatteryLogClear() {
+  markActivity();
+  stopBatteryLogger();
+
+  if (LittleFS.exists(BATTERY_LOG_PATH)) {
+    LittleFS.remove(BATTERY_LOG_PATH);
+  }
+
+  batteryLogSamples = 0;
+  lastBatteryLogAt = 0;
+  batteryLoggerStartedAt = 0;
+  ensureBatteryLogFile();
+
+  server.send(200, "application/json", "{\"ok\":true}");
+}
+
+void handleBatteryLogDownload() {
+  markActivity();
+  ensureBatteryLogFile();
+
+  File f = LittleFS.open(BATTERY_LOG_PATH, "r");
+  if (!f) {
+    server.send(500, "text/plain", "Log batterie indisponible");
+    return;
+  }
+
+  server.sendHeader(
+    "Content-Disposition",
+    "attachment; filename=chrono-battery-discharge.csv"
+  );
+  server.streamFile(f, "text/csv");
+  f.close();
+}
+
 void handlePowerSave() {
   const String mode = server.arg("sleep_mode");
 
@@ -1269,6 +1501,10 @@ void setupWebServer() {
   server.on("/api/test/reset", HTTP_POST, handleTestReset);
   server.on("/api/restart", HTTP_POST, handleRestart);
   server.on("/power/save", HTTP_POST, handlePowerSave);
+  server.on("/battery-log/start", HTTP_POST, handleBatteryLogStart);
+  server.on("/battery-log/stop", HTTP_POST, handleBatteryLogStop);
+  server.on("/battery-log/clear", HTTP_POST, handleBatteryLogClear);
+  server.on("/battery-log.csv", HTTP_GET, handleBatteryLogDownload);
 
   httpUpdater.setup(&server, "/update");
 
@@ -1324,6 +1560,12 @@ void setup() {
   Serial.begin(115200);
   delay(400);
 
+  if (!LittleFS.begin()) {
+    Serial.println("[LittleFS] erreur de montage");
+  } else {
+    ensureBatteryLogFile();
+  }
+
   Serial.println();
   Serial.println("==================================");
   Serial.print(" CHRONO BROADCAST REMOTE V");
@@ -1367,6 +1609,7 @@ void setup() {
 void loop() {
   handleButton();
   updateBattery();
+  updateBatteryLogger();
   maintainWifi();
 
   if (apMode) {
