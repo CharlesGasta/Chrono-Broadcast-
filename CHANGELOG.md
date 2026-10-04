@@ -1,5 +1,16 @@
 # Changelog
 
+## V1.10.0
+
+- Added a temporary battery-discharge logger stored in LittleFS.
+- Logger records one CSV sample every 60 seconds: uptime, elapsed time, raw ADC, calibrated voltage, current percentage and charging state.
+- Added Web controls to start, stop, clear and download the battery log.
+- Automatic Light Sleep is inhibited while the battery logger is active so a full overnight discharge can be recorded.
+- Added automatic charging detection based on a filtered voltage rise.
+- While charging, the percentage is hidden and the UI reports **EN CHARGE**.
+- Charging state is cleared when filtered voltage drops by at least 0.01 V from the latest charging peak.
+- Added battery charging/logger fields to the /status API.
+
 ## V1.9.0
 
 - Added configurable automatic Light Sleep.
