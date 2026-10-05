@@ -1,5 +1,12 @@
 # Changelog
 
+## V1.10.2
+
+- Replaced the generic LiPo voltage-to-percentage table with the empirical discharge curve measured on the actual CARAC remote.
+- New anchors span approximately 4.15 V at 100% down to 2.96 V at 0%.
+- Battery percentage continues to use linear interpolation between measured anchor points.
+- Charging detection and the persistent battery logger remain unchanged.
+
 ## V1.10.1
 
 - Battery logger now keeps running independently of Wi-Fi connectivity.
