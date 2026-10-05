@@ -10,12 +10,12 @@ extern "C" {
 #include "user_interface.h"
 }
 
-#define FIRMWARE_VERSION "1.10.1"
+#define FIRMWARE_VERSION "1.10.2"
 // Public build: battery logger + charge detection + sleep diagnostics
 
 // ======================================================
 // CHRONO BROADCAST / CARAC TIMER REMOTE — ESP8266
-// V1.10.1
+// V1.10.2
 //
 // - Short press: PLAY / PAUSE
 // - Long press 1.5 s: RESET
@@ -158,11 +158,22 @@ struct SocPoint {
   float voltage;
 };
 
+// Empirical discharge curve measured on the actual CARAC remote
+// during a full Wi-Fi-active discharge test (2026-10-05).
+// Percent is interpolated between these measured anchor points.
 const SocPoint SOC_TABLE[] = {
-  {  0, 3.30f}, {  5, 3.40f}, { 10, 3.50f}, { 15, 3.60f},
-  { 20, 3.65f}, { 30, 3.70f}, { 40, 3.75f}, { 50, 3.80f},
-  { 60, 3.85f}, { 70, 3.90f}, { 75, 3.95f}, { 80, 4.00f},
-  { 85, 4.05f}, { 90, 4.10f}, { 95, 4.15f}, {100, 4.20f}
+  {  0, 2.96f},
+  {  5, 3.45f},
+  { 10, 3.56f},
+  { 20, 3.74f},
+  { 30, 3.82f},
+  { 40, 3.85f},
+  { 50, 3.89f},
+  { 60, 3.95f},
+  { 70, 4.02f},
+  { 80, 4.04f},
+  { 90, 4.07f},
+  {100, 4.15f}
 };
 
 const size_t SOC_TABLE_COUNT = sizeof(SOC_TABLE) / sizeof(SOC_TABLE[0]);
