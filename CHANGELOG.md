@@ -1,5 +1,12 @@
 # Changelog
 
+## V1.10.6
+
+- Final tuning of quick charging detection.
+- Quick charge detection now requires a sustained rise of about +0.008 V together with at least +2 percentage points.
+- The condition must still persist across four battery samples (about 8 seconds) to avoid false positives from normal voltage variation.
+- All previous normal, low-battery and reboot-after-empty-battery charge detection paths remain active.
+
 ## V1.10.5
 
 - Made charging detection more responsive to the behavior observed around 30% SOC.
