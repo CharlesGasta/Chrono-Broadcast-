@@ -10,12 +10,12 @@ extern "C" {
 #include "user_interface.h"
 }
 
-#define FIRMWARE_VERSION "1.10.2"
+#define FIRMWARE_VERSION "1.10.3"
 // Public build: battery logger + charge detection + sleep diagnostics
 
 // ======================================================
 // CHRONO BROADCAST / CARAC TIMER REMOTE — ESP8266
-// V1.10.2
+// V1.10.3
 //
 // - Short press: PLAY / PAUSE
 // - Long press 1.5 s: RESET
@@ -162,18 +162,19 @@ struct SocPoint {
 // during a full Wi-Fi-active discharge test (2026-10-05).
 // Percent is interpolated between these measured anchor points.
 const SocPoint SOC_TABLE[] = {
-  {  0, 2.96f},
-  {  5, 3.45f},
-  { 10, 3.56f},
-  { 20, 3.74f},
+  {  0, 2.58f},
+  {  5, 3.41f},
+  { 10, 3.55f},
+  { 20, 3.73f},
   { 30, 3.82f},
-  { 40, 3.85f},
+  { 40, 3.86f},
   { 50, 3.89f},
-  { 60, 3.95f},
+  { 60, 3.93f},
   { 70, 4.02f},
   { 80, 4.04f},
-  { 90, 4.07f},
-  {100, 4.15f}
+  { 90, 4.065f},
+  { 95, 4.075f},
+  {100, 4.08f}
 };
 
 const size_t SOC_TABLE_COUNT = sizeof(SOC_TABLE) / sizeof(SOC_TABLE[0]);
