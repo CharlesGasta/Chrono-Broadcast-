@@ -1,5 +1,14 @@
 # Changelog
 
+## V1.10.4
+
+- Improved charging detection when the battery is completely empty.
+- On reboot, the firmware now compares the first stable battery reading with the last voltage stored in the discharge CSV.
+- A rise of at least 0.08 V after a dead-battery reboot is treated as charging.
+- At very low battery voltage, a slow accumulated rise of at least 0.05 V from the recent low-water mark can also trigger charging.
+- The normal charging detector remains unchanged above the low-battery zone.
+- Small natural voltage/ADC fluctuations should therefore not produce false **EN CHARGE** indications.
+
 ## V1.10.3
 
 - Refined the empirical battery percentage curve using the second overnight discharge test.
