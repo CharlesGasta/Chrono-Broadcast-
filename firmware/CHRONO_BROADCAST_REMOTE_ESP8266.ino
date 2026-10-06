@@ -10,12 +10,12 @@ extern "C" {
 #include "user_interface.h"
 }
 
-#define FIRMWARE_VERSION "1.10.3"
+#define FIRMWARE_VERSION "1.10.4"
 // Public build: battery logger + charge detection + sleep diagnostics
 
 // ======================================================
 // CHRONO BROADCAST / CARAC TIMER REMOTE — ESP8266
-// V1.10.3
+// V1.10.4
 //
 // - Short press: PLAY / PAUSE
 // - Long press 1.5 s: RESET
@@ -31,6 +31,7 @@ extern "C" {
 // - Persistent battery discharge logger (CSV in LittleFS)
 // - Automatic charging-state detection; percentage hidden while charging
 // - Battery logger survives Wi-Fi loss and unexpected power loss / reboot
+// - Low-battery charge detection also works after a dead-battery reboot
 // ======================================================
 
 #define BUTTON_PIN D5
@@ -47,6 +48,9 @@ const unsigned long BATTERY_LOG_INTERVAL_MS = 60000UL;
 const float CHARGE_START_RISE_V = 0.025f;
 const uint8_t CHARGE_START_CONFIRM_SAMPLES = 2;
 const float CHARGE_STOP_DROP_V = 0.010f;
+const float LOW_BATTERY_CHARGE_RISE_V = 0.050f;
+const float REBOOT_CHARGE_RISE_V = 0.080f;
+const float LOW_BATTERY_THRESHOLD_V = 3.55f;
 const char* BATTERY_LOG_PATH = "/battery-log.csv";
 const char* BATTERY_LOG_ARMED_PATH = "/battery-log-armed.flag";
 
@@ -146,6 +150,8 @@ bool batteryCharging = false;
 float chargeBaselineVoltage = 0.0f;
 float chargePeakVoltage = 0.0f;
 uint8_t chargeRiseConfirmCount = 0;
+float persistedLastBatteryVoltage = 0.0f;
+bool persistedVoltageChecked = false;
 
 bool batteryLoggerActive = false;
 unsigned long batteryLoggerStartedAt = 0;
@@ -321,11 +327,39 @@ void updateChargeDetection() {
   }
 
   if (!batteryCharging) {
+    // If the battery died and the ESP rebooted only because a charger was
+    // connected, the normal "voltage jump" can be missed during boot.
+    // Compare the first stable reading with the last voltage persisted in
+    // the discharge CSV. A large rise strongly indicates charging.
+    if (!persistedVoltageChecked) {
+      persistedVoltageChecked = true;
+
+      if (
+        persistedLastBatteryVoltage > 0.1f &&
+        batteryVoltage - persistedLastBatteryVoltage >= REBOOT_CHARGE_RISE_V
+      ) {
+        batteryCharging = true;
+        chargePeakVoltage = batteryVoltage;
+        chargeBaselineVoltage = batteryVoltage;
+        chargeRiseConfirmCount = 0;
+        Serial.println("[BATTERY] EN CHARGE (reprise apres batterie vide)");
+        return;
+      }
+    }
+
     if (batteryVoltage < chargeBaselineVoltage) {
       chargeBaselineVoltage = batteryVoltage;
     }
 
-    if (batteryVoltage - chargeBaselineVoltage >= CHARGE_START_RISE_V) {
+    // At very low battery level, charging can start as a slow staircase
+    // instead of a clean plug-in spike. Require a larger accumulated rise
+    // from the low-water mark so natural ADC/load variation is ignored.
+    const float requiredRise =
+      chargeBaselineVoltage <= LOW_BATTERY_THRESHOLD_V
+        ? LOW_BATTERY_CHARGE_RISE_V
+        : CHARGE_START_RISE_V;
+
+    if (batteryVoltage - chargeBaselineVoltage >= requiredRise) {
       if (chargeRiseConfirmCount < 255) chargeRiseConfirmCount++;
 
       if (chargeRiseConfirmCount >= CHARGE_START_CONFIRM_SAMPLES) {
@@ -396,6 +430,41 @@ void setBatteryLoggerArmed(bool armed) {
   } else if (LittleFS.exists(BATTERY_LOG_ARMED_PATH)) {
     LittleFS.remove(BATTERY_LOG_ARMED_PATH);
   }
+}
+
+float readLastLoggedBatteryVoltage() {
+  if (!LittleFS.exists(BATTERY_LOG_PATH)) return 0.0f;
+
+  File f = LittleFS.open(BATTERY_LOG_PATH, "r");
+  if (!f) return 0.0f;
+
+  String lastLine;
+  while (f.available()) {
+    String line = f.readStringUntil('\n');
+    line.trim();
+    if (line.length() > 0 && !line.startsWith("boot_segment")) {
+      lastLine = line;
+    }
+    yield();
+  }
+  f.close();
+
+  if (lastLine.length() == 0) return 0.0f;
+
+  // CSV: boot_segment,uptime_s,elapsed_s,adc_raw,voltage_v,percent,charging
+  int commaCount = 0;
+  int start = 0;
+  for (int i = 0; i <= lastLine.length(); i++) {
+    if (i == lastLine.length() || lastLine.charAt(i) == ',') {
+      if (commaCount == 4) {
+        return lastLine.substring(start, i).toFloat();
+      }
+      commaCount++;
+      start = i + 1;
+    }
+  }
+
+  return 0.0f;
 }
 
 bool isBatteryLoggerArmed() {
@@ -1632,6 +1701,7 @@ void setup() {
     Serial.println("[LittleFS] erreur de montage");
   } else {
     ensureBatteryLogFile();
+    persistedLastBatteryVoltage = readLastLoggedBatteryVoltage();
     recoverBatteryLoggerIfArmed();
   }
 
