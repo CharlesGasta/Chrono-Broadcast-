@@ -1,5 +1,12 @@
 # Changelog
 
+## V1.10.5
+
+- Made charging detection more responsive to the behavior observed around 30% SOC.
+- Added a fast-path detector for sustained small voltage increases: about +0.008 V together with at least +3 percentage points.
+- The fast-path must persist across four battery samples (about 8 seconds), reducing false positives from normal ADC/load variation.
+- Existing low-battery, reboot-after-empty-battery and normal charging detectors remain in place.
+
 ## V1.10.4
 
 - Improved charging detection when the battery is completely empty.
