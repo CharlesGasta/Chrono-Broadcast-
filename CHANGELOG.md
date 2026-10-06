@@ -1,5 +1,12 @@
 # Changelog
 
+## V1.10.3
+
+- Refined the empirical battery percentage curve using the second overnight discharge test.
+- Full charge is now held at 100% down to approximately 4.08 V to avoid an immediate percentage drop after unplugging.
+- Added denser high-SOC anchor points at 95% and 90% for a smoother top-end indication.
+- Lower-end anchors were also adjusted from the second full-discharge run.
+
 ## V1.10.2
 
 - Replaced the generic LiPo voltage-to-percentage table with the empirical discharge curve measured on the actual CARAC remote.
