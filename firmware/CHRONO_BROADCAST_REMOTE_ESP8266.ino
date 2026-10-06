@@ -10,12 +10,12 @@ extern "C" {
 #include "user_interface.h"
 }
 
-#define FIRMWARE_VERSION "1.10.4"
+#define FIRMWARE_VERSION "1.10.5"
 // Public build: battery logger + charge detection + sleep diagnostics
 
 // ======================================================
 // CHRONO BROADCAST / CARAC TIMER REMOTE — ESP8266
-// V1.10.4
+// V1.10.5
 //
 // - Short press: PLAY / PAUSE
 // - Long press 1.5 s: RESET
@@ -32,6 +32,7 @@ extern "C" {
 // - Automatic charging-state detection; percentage hidden while charging
 // - Battery logger survives Wi-Fi loss and unexpected power loss / reboot
 // - Low-battery charge detection also works after a dead-battery reboot
+// - Faster charge detection from sustained small upward voltage trends
 // ======================================================
 
 #define BUTTON_PIN D5
@@ -51,6 +52,9 @@ const float CHARGE_STOP_DROP_V = 0.010f;
 const float LOW_BATTERY_CHARGE_RISE_V = 0.050f;
 const float REBOOT_CHARGE_RISE_V = 0.080f;
 const float LOW_BATTERY_THRESHOLD_V = 3.55f;
+const float QUICK_CHARGE_RISE_V = 0.008f;
+const uint8_t QUICK_CHARGE_CONFIRM_SAMPLES = 4;
+const uint8_t QUICK_CHARGE_PERCENT_RISE = 3;
 const char* BATTERY_LOG_PATH = "/battery-log.csv";
 const char* BATTERY_LOG_ARMED_PATH = "/battery-log-armed.flag";
 
@@ -152,6 +156,8 @@ float chargePeakVoltage = 0.0f;
 uint8_t chargeRiseConfirmCount = 0;
 float persistedLastBatteryVoltage = 0.0f;
 bool persistedVoltageChecked = false;
+uint8_t chargeBaselinePercent = 0;
+uint8_t quickChargeConfirmCount = 0;
 
 bool batteryLoggerActive = false;
 unsigned long batteryLoggerStartedAt = 0;
@@ -322,6 +328,7 @@ void updateChargeDetection() {
 
   if (chargeBaselineVoltage <= 0.1f) {
     chargeBaselineVoltage = batteryVoltage;
+    chargeBaselinePercent = batteryPercent;
     chargePeakVoltage = batteryVoltage;
     return;
   }
@@ -341,7 +348,9 @@ void updateChargeDetection() {
         batteryCharging = true;
         chargePeakVoltage = batteryVoltage;
         chargeBaselineVoltage = batteryVoltage;
+        chargeBaselinePercent = batteryPercent;
         chargeRiseConfirmCount = 0;
+        quickChargeConfirmCount = 0;
         Serial.println("[BATTERY] EN CHARGE (reprise apres batterie vide)");
         return;
       }
@@ -349,6 +358,34 @@ void updateChargeDetection() {
 
     if (batteryVoltage < chargeBaselineVoltage) {
       chargeBaselineVoltage = batteryVoltage;
+      chargeBaselinePercent = batteryPercent;
+      quickChargeConfirmCount = 0;
+    } else if (batteryPercent < chargeBaselinePercent) {
+      chargeBaselinePercent = batteryPercent;
+    }
+
+    // Fast path: the measured discharge curve is steep around ~3.8 V, so
+    // a real charging event may only move the filtered voltage by ~0.01 V
+    // while the displayed SOC climbs several points. Require both effects
+    // and persistence for ~8 seconds to reject normal ADC/load jitter.
+    const bool quickVoltageRise =
+      batteryVoltage - chargeBaselineVoltage >= QUICK_CHARGE_RISE_V;
+    const bool quickPercentRise =
+      batteryPercent >= (uint8_t)min(100, (int)chargeBaselinePercent + QUICK_CHARGE_PERCENT_RISE);
+
+    if (quickVoltageRise && quickPercentRise) {
+      if (quickChargeConfirmCount < 255) quickChargeConfirmCount++;
+
+      if (quickChargeConfirmCount >= QUICK_CHARGE_CONFIRM_SAMPLES) {
+        batteryCharging = true;
+        chargePeakVoltage = batteryVoltage;
+        chargeRiseConfirmCount = 0;
+        quickChargeConfirmCount = 0;
+        Serial.println("[BATTERY] EN CHARGE (tendance rapide)");
+        return;
+      }
+    } else {
+      quickChargeConfirmCount = 0;
     }
 
     // At very low battery level, charging can start as a slow staircase
@@ -366,6 +403,7 @@ void updateChargeDetection() {
         batteryCharging = true;
         chargePeakVoltage = batteryVoltage;
         chargeRiseConfirmCount = 0;
+        quickChargeConfirmCount = 0;
         Serial.println("[BATTERY] EN CHARGE");
       }
     } else {
@@ -382,8 +420,10 @@ void updateChargeDetection() {
   if (chargePeakVoltage - batteryVoltage >= CHARGE_STOP_DROP_V) {
     batteryCharging = false;
     chargeBaselineVoltage = batteryVoltage;
+    chargeBaselinePercent = batteryPercent;
     chargePeakVoltage = batteryVoltage;
     chargeRiseConfirmCount = 0;
+    quickChargeConfirmCount = 0;
     Serial.println("[BATTERY] FIN DE CHARGE");
   }
 }
