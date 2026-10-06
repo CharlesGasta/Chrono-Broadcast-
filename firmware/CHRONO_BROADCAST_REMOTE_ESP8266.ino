@@ -10,12 +10,12 @@ extern "C" {
 #include "user_interface.h"
 }
 
-#define FIRMWARE_VERSION "1.10.5"
+#define FIRMWARE_VERSION "1.10.6"
 // Public build: battery logger + charge detection + sleep diagnostics
 
 // ======================================================
 // CHRONO BROADCAST / CARAC TIMER REMOTE — ESP8266
-// V1.10.5
+// V1.10.6
 //
 // - Short press: PLAY / PAUSE
 // - Long press 1.5 s: RESET
@@ -54,7 +54,7 @@ const float REBOOT_CHARGE_RISE_V = 0.080f;
 const float LOW_BATTERY_THRESHOLD_V = 3.55f;
 const float QUICK_CHARGE_RISE_V = 0.008f;
 const uint8_t QUICK_CHARGE_CONFIRM_SAMPLES = 4;
-const uint8_t QUICK_CHARGE_PERCENT_RISE = 3;
+const uint8_t QUICK_CHARGE_PERCENT_RISE = 2;
 const char* BATTERY_LOG_PATH = "/battery-log.csv";
 const char* BATTERY_LOG_ARMED_PATH = "/battery-log-armed.flag";
 
