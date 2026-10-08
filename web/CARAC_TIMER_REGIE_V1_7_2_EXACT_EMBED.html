@@ -713,7 +713,14 @@ const animationEditor = (() => {
   }
   function restart(){position=0;elapsed=0;last=performance.now();}
   let uploadTimer=0, lastAnimationHash='', animationUploadBusy=false;
-  const hostedHardware=()=>/^https?:$/.test(location.protocol) && $('backend-mode')?.value==='esp32';
+  function animationEspBase(){
+    if($('backend-mode')?.value!=='esp32')return '';
+    let raw=String($('esp-ip')?.value||'').trim();
+    if(!raw && /^https?:$/.test(location.protocol)) raw=location.origin;
+    if(raw && !/^https?:\/\//i.test(raw)) raw='http://'+raw;
+    return raw.replace(/\/+$/,'');
+  }
+  const hostedHardware=()=>!!animationEspBase();
 
   function activeItems(){
     if(sequence.length) return sequence;
@@ -774,7 +781,7 @@ const animationEditor = (() => {
     const p=new URLSearchParams();
     p.set('speed',String(Math.max(0,Math.min(100,Math.round(Number($('standby-speed').value)||0)))));
     p.set('direction',$('standby-direction').value==='right'?'1':'0');
-    try{await fetch('/api/animation/settings',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:p.toString(),cache:'no-store'});}catch(_){}
+    try{await fetch(animationEspBase()+'/api/animation/settings',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:p.toString(),cache:'no-store'});}catch(_){}
   }
 
   async function syncToEsp(force=false){
@@ -790,7 +797,7 @@ const animationEditor = (() => {
     try{
       const form=new FormData();
       form.append('animation',new Blob([bytes],{type:'application/octet-stream'}),'carac-animation.bin');
-      const response=await fetch('/api/animation',{method:'POST',body:form,cache:'no-store'});
+      const response=await fetch(animationEspBase()+'/api/animation',{method:'POST',body:form,cache:'no-store'});
       if(!response.ok)throw new Error(`HTTP ${response.status}`);
       const result=await response.json();
       if(!result.ok)throw new Error(result.error||'chargement refusé');
@@ -1492,30 +1499,39 @@ syncStudio();
 <script>
 'use strict';
 (()=>{
-  // CARAC TIMER V2 — ESP master + local animation engine.
+  // CARAC TIMER V2.0.4 — universal ESP-master bridge.
+  // Works both when this UI is served by the ESP and when the HTML is opened locally.
   const $b=id=>document.getElementById(id);
-  const hosted=/^https?:$/.test(location.protocol);
 
-  if(hosted){
-    const bm=$b('backend-mode'), bi=$b('esp-ip');
-    if(bm&&bi){
-      bm.value='esp32';
-      bi.value=location.origin;
-    }
+  function espBase(){
+    if($b('backend-mode')?.value!=='esp32') return '';
+    let raw=String($b('esp-ip')?.value||'').trim();
+    if(!raw && /^https?:$/.test(location.protocol)) raw=location.origin;
+    if(raw && !/^https?:\/\//i.test(raw)) raw='http://'+raw;
+    return raw.replace(/\/+$/,'');
   }
 
+  function hardwareEnabled(){ return !!espBase(); }
+
   let syncBusy=false, syncQueued=false, lastSignature='', lastHardwareSeq=-1, statusBusy=false;
-  let debounceTimer=0, lastLocalMarker='';
+  let debounceTimer=0, lastLocalMarker='', initialized=false;
 
   function currentValue(){
     try{
-      if(mode==='clock'||mode==='off'||mode==='standby')return 0;
+      if(mode==='clock'||mode==='off'||mode==='standby') return 0;
       return Math.round(timers[mode]?.value?.()||0);
-    }catch(_){return 0;}
+    }catch(_){ return 0; }
   }
-  function runningNow(){try{return !!timers[mode]?.running;}catch(_){return false;}}
-  function colorValue(id,fallback='#ffffff'){return String($b(id)?.value||fallback).replace('#','');}
-  function bool(id){return $b(id)?.checked?'1':'0';}
+
+  function runningNow(){
+    try{return !!timers[mode]?.running;}catch(_){return false;}
+  }
+
+  function colorValue(id,fallback='#ffffff'){
+    return String($b(id)?.value||fallback).replace('#','');
+  }
+
+  function bool(id){ return $b(id)?.checked?'1':'0'; }
 
   function snapshotParams(){
     const p=new URLSearchParams();
@@ -1540,6 +1556,7 @@ syncStudio();
     p.set('color_sign',colorValue('color-sign'));
 
     try{p.set('deadline_epoch',String(Math.round(timers.deadline?.deadline||0)));}catch(_){p.set('deadline_epoch','0');}
+
     try{
       const c=window.CARACClock, now=c?.now?.()||new Date(), state=c?.state||{};
       p.set('clock_epoch_ms',String(now.getTime()));
@@ -1548,10 +1565,15 @@ syncStudio();
       p.set('clock_seconds',state.seconds===false?'0':'1');
       p.set('clock_12h',state.format24===false?'1':'0');
     }catch(_){
-      p.set('clock_epoch_ms',String(Date.now()));p.set('clock_offset_ms','0');p.set('clock_frozen','0');p.set('clock_seconds','1');p.set('clock_12h','0');
+      p.set('clock_epoch_ms',String(Date.now()));
+      p.set('clock_offset_ms','0');
+      p.set('clock_frozen','0');
+      p.set('clock_seconds','1');
+      p.set('clock_12h','0');
     }
 
     p.set('alert',typeof alertActive!=='undefined'&&alertActive?'1':'0');
+
     try{
       if(prestart){
         p.set('prestart_active','1');
@@ -1559,108 +1581,248 @@ syncStudio();
         p.set('prestart_duration_ms',String(Math.max(1,Math.round(prestart.duration||0))));
         p.set('prestart_remaining_ms',String(Math.max(0,Math.round(prestart.end-performance.now()))));
         p.set('prestart_target',prestart.target||mode);
-      }else p.set('prestart_active','0');
-    }catch(_){p.set('prestart_active','0');}
+      }else{
+        p.set('prestart_active','0');
+      }
+    }catch(_){
+      p.set('prestart_active','0');
+    }
+
     p.set('remote_url',$b('remote-ip')?.value?.trim()||'http://carac-remote.local');
     return p;
   }
 
   function signatureOf(p){
     const q=new URLSearchParams(p);
-    if(q.get('running')==='1')q.delete('value_ms');
+    if(q.get('running')==='1') q.delete('value_ms');
     q.delete('prestart_remaining_ms');
     return q.toString();
   }
 
   async function syncState(force=false){
-    if(syncBusy){syncQueued=syncQueued||force;return;}
-    const p=snapshotParams(), sig=signatureOf(p);
-    if(!force&&sig===lastSignature)return;
-    lastSignature=sig;syncBusy=true;
-    try{
-      const r=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:p.toString(),cache:'no-store'});
-      if(r.ok){
-        const j=await r.json().catch(()=>null);
-        if(j&&Number.isFinite(Number(j.state_seq)))lastHardwareSeq=Number(j.state_seq);
-      }
-    }catch(_){}
-    finally{
-      syncBusy=false;
-      if(syncQueued){syncQueued=false;setTimeout(()=>syncState(true),40);}
+    const base=espBase();
+    if(!base) return;
+
+    if(syncBusy){
+      syncQueued=syncQueued||force;
+      return;
     }
-  }
 
-  function scheduleSync(force=true,delay=90){
-    clearTimeout(debounceTimer);
-    debounceTimer=setTimeout(()=>syncState(force),delay);
-  }
-
-  async function pushModeExplicit(){
     const p=snapshotParams();
+    const sig=signatureOf(p);
+
+    if(!force&&sig===lastSignature) return;
+
+    syncBusy=true;
     try{
-      const r=await fetch('/api/mode',{
+      const r=await fetch(base+'/api/sync',{
         method:'POST',
         headers:{'Content-Type':'application/x-www-form-urlencoded'},
         body:p.toString(),
         cache:'no-store'
       });
-      if(!r.ok)throw new Error(`HTTP ${r.status}`);
+      if(!r.ok) throw new Error('HTTP '+r.status);
+
       const j=await r.json().catch(()=>null);
-      if(j&&Number.isFinite(Number(j.state_seq)))lastHardwareSeq=Number(j.state_seq);
-      // A full state packet immediately follows, so colors/format/settings stay coherent.
-      scheduleSync(true,25);
+      if(j&&Number.isFinite(Number(j.state_seq))) lastHardwareSeq=Number(j.state_seq);
+      lastSignature=sig;
     }catch(e){
-      console.warn('CARAC mode change failed',e);
-      scheduleSync(true,40);
+      lastSignature='';
+      console.warn('CARAC hardware sync failed',e);
+    }finally{
+      syncBusy=false;
+      if(syncQueued){
+        syncQueued=false;
+        setTimeout(()=>syncState(true),40);
+      }
     }
   }
 
-  // Mode buttons get a dedicated hardware command. Their original listener runs first
-  // and updates the local mode; this listener then pushes that new mode to the ESP master.
+  function scheduleSync(force=true,delay=80){
+    clearTimeout(debounceTimer);
+    debounceTimer=setTimeout(()=>syncState(force),delay);
+  }
+
+  async function pushModeExplicit(){
+    const base=espBase();
+    if(!base) return;
+
+    const p=snapshotParams();
+
+    try{
+      const r=await fetch(base+'/api/mode',{
+        method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body:p.toString(),
+        cache:'no-store'
+      });
+      if(!r.ok) throw new Error('HTTP '+r.status);
+
+      const j=await r.json().catch(()=>null);
+      if(j&&Number.isFinite(Number(j.state_seq))) lastHardwareSeq=Number(j.state_seq);
+
+      lastSignature='';
+      await syncState(true);
+    }catch(e){
+      console.warn('CARAC mode change failed',e);
+    }
+  }
+
+  async function pushTransport(action){
+    const base=espBase();
+    if(!base) return;
+
+    const p=new URLSearchParams();
+    p.set('action',action);
+    p.set('target',typeof mode==='string'?mode:'clock');
+
+    try{
+      const r=await fetch(base+'/api/command',{
+        method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body:p.toString(),
+        cache:'no-store'
+      });
+      if(!r.ok) throw new Error('HTTP '+r.status);
+
+      const j=await r.json().catch(()=>null);
+      if(j&&Number.isFinite(Number(j.state_seq))) lastHardwareSeq=Number(j.state_seq);
+
+      setTimeout(()=>syncState(true),25);
+    }catch(e){
+      console.warn('CARAC transport failed',e);
+      setTimeout(()=>syncState(true),40);
+    }
+  }
+
+  function applyHardwareState(s,forceMode=false){
+    if(!s) return;
+
+    const target=s.mode;
+    if(typeof target==='string'&&['clock','stopwatch','countdown','deadline','standby','off'].includes(target)){
+      if(forceMode||mode!==target){
+        if(timers[mode]?.running) timers[mode].pause();
+        mode=target;
+        standbyStarted=performance.now();
+        previous='';
+      }
+    }
+
+    if(['stopwatch','countdown','deadline'].includes(target)&&timers[target]){
+      timers[target].pause();
+      timers[target].set(Number(s.value_ms)||0);
+      if(s.running) timers[target].play();
+    }
+
+    if(Number.isFinite(Number(s.state_seq))) lastHardwareSeq=Number(s.state_seq);
+
+    try{updateControls();}catch(_){}
+  }
+
+  async function readHardwareState(forceMode=false){
+    const base=espBase();
+    if(!base) return null;
+
+    try{
+      const r=await fetch(base+'/api/status',{cache:'no-store'});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const s=await r.json();
+      applyHardwareState(s,forceMode);
+      return s;
+    }catch(e){
+      console.warn('CARAC status failed',e);
+      return null;
+    }
+  }
+
+  // Dedicated mode command. The original CARAC listener updates the local mode first.
   document.querySelectorAll('[data-mode]').forEach(button=>{
     button.addEventListener('click',()=>setTimeout(pushModeExplicit,0));
   });
 
-  for(const ev of ['click','change','submit'])document.addEventListener(ev,()=>scheduleSync(true,80),false);
-  document.addEventListener('input',()=>scheduleSync(true,180),false);
+  // Dedicated transport commands.
+  $b('play')?.addEventListener('click',()=>setTimeout(()=>pushTransport('PLAY'),0));
+  $b('pause')?.addEventListener('click',()=>setTimeout(()=>pushTransport('PAUSE'),0));
+  $b('reset')?.addEventListener('click',()=>setTimeout(()=>pushTransport('RESET'),0));
 
-  // Internal state changes only trigger a packet when the state actually changes.
+  // Settings and manual timer edits.
+  document.addEventListener('change',()=>scheduleSync(true,70),false);
+  document.addEventListener('submit',()=>scheduleSync(true,70),false);
+  document.addEventListener('input',()=>scheduleSync(true,160),false);
+
+  // Internal state changes (prestart, alert, etc.).
   setInterval(()=>{
+    if(!initialized||!hardwareEnabled()) return;
+
     let marker='';
-    try{marker=[mode,runningNow()?'1':'0',prestart?`${prestart.style}:${Math.round(prestart.end)}`:'-',alertActive?'A':'-'].join('|');}catch(_){}
+    try{
+      marker=[
+        mode,
+        runningNow()?'1':'0',
+        prestart?prestart.style+':'+Math.round(prestart.end):'-',
+        typeof alertActive!=='undefined'&&alertActive?'A':'-'
+      ].join('|');
+    }catch(_){}
+
     if(marker!==lastLocalMarker){
-      const old=lastLocalMarker;lastLocalMarker=marker;scheduleSync(true,40);
+      const old=lastLocalMarker;
+      lastLocalMarker=marker;
+      scheduleSync(true,35);
+
       if(mode==='standby'&&(!old||!old.startsWith('standby|'))){
         setTimeout(()=>animationEditor?.syncToEsp?.(true),120);
       }
     }
   },100);
 
-  function applyRemoteHardwareState(s){
-    if(!s||s.last_source!=='REMOTE')return;
-    const seq=Number(s.state_seq);
-    if(!Number.isFinite(seq)||seq===lastHardwareSeq)return;
-    lastHardwareSeq=seq;
+  // Physical remote can alter the ESP master. Pull it back into the UI.
+  async function pollStatus(){
+    if(!initialized||statusBusy||!hardwareEnabled()) return;
+
+    statusBusy=true;
     try{
-      const target=s.mode;
-      if(['stopwatch','countdown','deadline'].includes(target)&&timers[target]){
-        if(mode!==target){mode=target;standbyStarted=performance.now();previous='';}
-        timers[target].pause();timers[target].set(Number(s.value_ms)||0);if(s.running)timers[target].play();updateControls();
+      const base=espBase();
+      const r=await fetch(base+'/api/status',{cache:'no-store'});
+      if(!r.ok) return;
+      const s=await r.json();
+
+      const seq=Number(s.state_seq);
+      if(s.last_source==='REMOTE'&&Number.isFinite(seq)&&seq!==lastHardwareSeq){
+        applyHardwareState(s,true);
       }
     }catch(_){}
-  }
-
-  async function pollStatus(){
-    if(statusBusy)return;statusBusy=true;
-    try{const r=await fetch('/api/status',{cache:'no-store'});if(r.ok)applyRemoteHardwareState(await r.json());}catch(_){}
     finally{statusBusy=false;}
   }
-  setInterval(pollStatus,1000);pollStatus();
 
-  const boot=$b('test-boot-animation');
-  if(boot)boot.addEventListener('click',()=>fetch('/api/boot-animation',{method:'POST'}).catch(()=>{}));
+  setInterval(pollStatus,1000);
 
-  setTimeout(()=>syncState(true),350);
+  // Critical: on page load, ESP is the master. Read it first.
+  // Never overwrite the hardware with the UI's default CLOCK state.
+  async function initialize(){
+    if(!hardwareEnabled()){
+      initialized=true;
+      return;
+    }
+
+    const s=await readHardwareState(true);
+    initialized=true;
+
+    if(s){
+      try{
+        lastLocalMarker=[
+          mode,
+          runningNow()?'1':'0',
+          prestart?prestart.style+':'+Math.round(prestart.end):'-',
+          typeof alertActive!=='undefined'&&alertActive?'A':'-'
+        ].join('|');
+      }catch(_){}
+    }
+  }
+
+  window.CARACHardwareSync=()=>syncState(true);
+  window.CARACHardwareStatus=()=>readHardwareState(true);
+
+  setTimeout(initialize,250);
 })();
 </script>
 
