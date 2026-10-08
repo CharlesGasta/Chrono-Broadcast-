@@ -17,6 +17,7 @@ body{font-family:"ABC Favorit","Segoe UI",Arial,sans-serif}
 .animation-editor{grid-column:1/-1}.editor-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0}.editor-toolbar label{display:flex;align-items:center;gap:8px}.editor-toolbar input[type=checkbox]{display:inline-block;width:18px;height:18px}.editor-toolbar input[type=file]{font:14px "ABC Favorit",sans-serif;height:auto;max-width:100%}#paint-board{width:100%;max-width:800px;aspect-ratio:2;touch-action:none;cursor:crosshair;border:1px solid var(--border)}#animation-list{padding:0;list-style:none}#animation-list li{display:flex;align-items:center;gap:8px;margin:8px 0;padding:10px;background:#0d1115;flex-wrap:wrap}#animation-list span{flex:1;min-width:160px;overflow-wrap:anywhere}#animation-list select{padding:8px;font:inherit;max-width:100%}#animation-list input{width:90px}#standby-speed{width:160px;accent-color:var(--accent)}
 
 </style><style>
+.remote-panel{display:none!important}
 :root{--bg:#090c10;--panel:#12171d;--border:#27313b;--muted:#9ba9b8;--accent:#ff6938}
 [hidden]{display:none!important}body{background:radial-gradient(ellipse at 40% 0,#1b2531 0,transparent 55%),#090c10}header{max-width:none;padding:20px 32px;background:#0d1118;border-bottom:1px solid #303b47}.brand-line img{width:150px}.brand-line span{font-size:22px}.brand small{font-size:11px;letter-spacing:2px}.header-actions{display:flex;gap:16px;align-items:center}#open-settings{background:#1d2834;padding:12px 20px}.badge{border:0;padding:0;font-size:11px}main{max-width:1580px;grid-template-columns:minmax(0,1fr) 320px;gap:18px;padding:24px 32px}.screen{grid-column:1;grid-row:1;padding:22px;background:#0f141a;border-top:2px solid #3c4855}.section-head h1{font-size:18px}.matrix-case{max-width:none!important;padding:12px;border-color:#424f5b;border-radius:4px}.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:20px}.modes button{min-width:0;padding:12px 5px;border-radius:3px;font-size:14px}.modes button[aria-pressed=true]{background:#28394a;box-shadow:inset 0 -2px var(--accent);color:#fff}.modes button[data-mode=off]{color:#aab4bf}.screen-footer{padding:18px 3px;font-size:13px}#readout{font-size:22px;font-variant-numeric:tabular-nums;letter-spacing:2px}.screen-tools{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:12px;gap:12px}.screen-tools span{font-size:11px;letter-spacing:1px;color:#7e8d9e}.screen-tools button{background:transparent;font-size:13px;padding:8px 12px}.side{grid-column:2;grid-row:1 / span 2;gap:18px}.transport{padding:20px}.transport-buttons{grid-template-columns:1fr 1fr}.transport-buttons #play{grid-column:1/-1;padding:20px;font-size:20px;letter-spacing:2px}.transport-buttons #pause,.transport-buttons #reset{padding:15px 8px}.alert-button{margin-top:22px;font-size:13px;padding:18px 8px;background:#2e2119}.departure-summary{font-size:12px;width:100%;margin-top:18px;background:#161e27;border-color:#2b3b4a;padding:10px 6px}.remote-panel{flex:0;padding:20px}.remote-panel p{font-size:12px}.remote-panel #remote{height:130px;width:130px}.quick-controls{grid-column:1;grid-row:2}.quick-controls>.panel{border-left:3px solid var(--accent);padding:20px 24px}.quick-controls .section-head{margin-bottom:12px}.quick-controls .corrections button{padding:12px;font-size:14px}.quick-controls label{font-size:14px}.quick-controls .overrun-option{margin-top:8px;margin-bottom:12px}.standby-quick{display:flex;align-items:center;justify-content:space-between;gap:20px}#message{font-size:14px;min-height:22px}footer{max-width:1580px;font-size:11px;padding:0 32px 20px}select{background:#1c2631;color:#edf3fa;border:1px solid #3a4a5b;border-radius:4px;font:inherit;font-size:14px;padding:9px;max-width:100%}input[type=checkbox]{accent-color:var(--accent)}p{line-height:1.55}button:focus-visible,select:focus-visible{outline:2px solid #ffad87;outline-offset:3px}
 #studio-settings{position:fixed;inset:0 0 0 auto;margin:0;width:min(840px,94vw);height:100dvh;max-height:100dvh;max-width:100vw;border:0;border-left:1px solid #425063;padding:0;background:#111820;color:#edf3fa;box-shadow:-20px 0 80px #0009}#studio-settings::backdrop{background:#02050a99;backdrop-filter:blur(2px)}.drawer-head{padding:24px;display:flex;align-items:center;justify-content:space-between;gap:20px;background:#17212c}.drawer-head small{font-size:11px;letter-spacing:1.5px;color:#9aabbc}.drawer-head h2{font-size:24px;margin-top:5px}.drawer-head button{font-size:20px;background:transparent}.settings-tabs{display:flex;gap:6px;padding:12px 24px;border-bottom:1px solid #30404f;position:sticky;top:0;background:#111820;z-index:2;flex-wrap:wrap}.settings-tabs button{flex:1;background:transparent;min-width:100px}.settings-tabs button[aria-pressed=true]{background:#29394a;border-color:#63809b}.drawer-body{padding:24px}.drawer-body h3{font-size:18px;margin:0 0 20px}.drawer-body .panel{margin-bottom:20px;background:#161f29;padding:20px}.drawer-body p{font-size:14px}.drawer-body .display-settings{flex-wrap:wrap}.drawer-body .brightness{min-width:230px}.drawer-body .editor-toolbar{gap:14px}.color-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:20px}.color-grid label{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#1c2834;border:1px solid #334355;border-radius:5px}.color-grid input{width:42px;height:32px}.drawer-body #unit-color-settings{padding:12px 0 20px;border-bottom:1px solid var(--border)}.drawer-body .size-settings{padding:18px 0}.drawer-body .system dl div{flex-wrap:wrap}#pane-timing .editor-toolbar{margin-top:0}#f1-help{border-left:2px solid #fa6849;padding-left:12px}.drawer-body #animation-list li{padding:12px}.drawer-body input[type=file]{width:100%}
@@ -693,24 +694,124 @@ const animationEditor = (() => {
       if(item.width===64 && item.height===32){const edit=document.createElement('button');edit.textContent='Reprendre le dessin';edit.onclick=()=>{saveUndo();pixels.set(item.data);$('frame-name').value=item.name;paintBoard();notify('Image chargée dans la grille. Ajoutez-la après modification pour créer une nouvelle étape.');};row.append(edit);}
       const effect = document.createElement('select'); effect.setAttribute('aria-label',`Effet de ${item.name}`);
       for(const [value,text] of [['scroll','Défilement'],['still','Image fixe']]) { const option = document.createElement('option'); option.value=value; option.textContent=text; effect.append(option); }
-      effect.value=item.effect; effect.onchange=()=>{item.effect=effect.value;restart();}; row.append(effect);
-      const duration=document.createElement('input'); duration.type='number'; duration.min='.1'; duration.max='60'; duration.step='.1'; duration.value=item.duration; duration.setAttribute('aria-label','Durée image fixe en secondes'); duration.title='Durée à 25 % de vitesse (secondes)'; duration.onchange=()=>{item.duration=Math.min(60,Math.max(.1,Number(duration.value)||1));duration.value=item.duration;restart();}; row.append(duration);
-      for(const [text,delta] of [['↑',-1],['↓',1],['×',0]]) { const b=document.createElement('button'); b.textContent=text; b.setAttribute('aria-label',delta===0?'Supprimer '+item.name:delta<0?'Monter '+item.name:'Descendre '+item.name); b.disabled=delta<0&&i===0||delta>0&&i===sequence.length-1; b.onclick=()=>{if(!delta)sequence.splice(i,1);else [sequence[i],sequence[i+delta]]=[sequence[i+delta],sequence[i]];restart();refreshList();}; row.append(b); }
+      effect.value=item.effect; effect.onchange=()=>{item.effect=effect.value;restart();queueUpload();}; row.append(effect);
+      const duration=document.createElement('input'); duration.type='number'; duration.min='.1'; duration.max='60'; duration.step='.1'; duration.value=item.duration; duration.setAttribute('aria-label','Durée image fixe en secondes'); duration.title='Durée à 25 % de vitesse (secondes)'; duration.onchange=()=>{item.duration=Math.min(60,Math.max(.1,Number(duration.value)||1));duration.value=item.duration;restart();queueUpload();}; row.append(duration);
+      for(const [text,delta] of [['↑',-1],['↓',1],['×',0]]) { const b=document.createElement('button'); b.textContent=text; b.setAttribute('aria-label',delta===0?'Supprimer '+item.name:delta<0?'Monter '+item.name:'Descendre '+item.name); b.disabled=delta<0&&i===0||delta>0&&i===sequence.length-1; b.onclick=()=>{if(!delta)sequence.splice(i,1);else [sequence[i],sequence[i+delta]]=[sequence[i+delta],sequence[i]];restart();refreshList();queueUpload();}; row.append(b); }
       list.append(row);
     });
     $('sequence-status').textContent=sequence.length ? `${sequence.length} élément(s) · boucle automatique` : 'Séquence vide : le contenu de veille sélectionné est affiché.';
   }
   function restart(){position=0;elapsed=0;last=performance.now();}
+  let uploadTimer=0, lastAnimationHash='', animationUploadBusy=false;
+  const hostedHardware=()=>/^https?:$/.test(location.protocol) && $('backend-mode')?.value==='esp32';
+
+  function activeItems(){
+    if(sequence.length) return sequence;
+    if(!logoPixels) return [];
+    return [{name:'Veille',data:new Uint8ClampedArray(logoPixels),width:standbyWidth,height:standbyHeight,effect:'scroll',duration:1}];
+  }
+
+  function rgb565(r,g,b){return ((r>>3)<<11)|((g>>2)<<5)|(b>>3);}
+
+  function animationBinary(){
+    const items=activeItems().slice(0,60);
+    let total=16;
+    for(const item of items) total+=8+item.width*item.height*2;
+
+    const out=new Uint8Array(total), view=new DataView(out.buffer);
+    const magic='CATANIM1';
+    for(let i=0;i<8;i++)out[i]=magic.charCodeAt(i);
+    out[8]=1;
+    out[9]=items.length;
+    out[10]=Math.max(0,Math.min(100,Math.round(Number($('standby-speed').value)||0)));
+    out[11]=$('standby-direction').value==='right'?1:0;
+    let off=16;
+
+    for(const item of items){
+      const w=Math.max(1,Math.min(64,Math.round(item.width)));
+      const h=Math.max(1,Math.min(32,Math.round(item.height)));
+      out[off]=w;
+      out[off+1]=h;
+      out[off+2]=item.effect==='still'?1:0;
+      out[off+3]=0;
+      view.setUint16(off+4,Math.max(1,Math.min(600,Math.round((Number(item.duration)||1)*10))),true);
+      view.setUint16(off+6,w*h,true);
+      off+=8;
+
+      for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+        const i=(y*item.width+x)*4;
+        const a=item.data?.[i+3]||0;
+        let v=0;
+        if(a>100){
+          v=rgb565(item.data[i]||0,item.data[i+1]||0,item.data[i+2]||0);
+          if(v===0)v=1; // 0 is reserved as transparent
+        }
+        view.setUint16(off,v,true);
+        off+=2;
+      }
+    }
+    return out;
+  }
+
+  function hashBytes(bytes){
+    let h=2166136261>>>0;
+    for(let i=0;i<bytes.length;i++){h^=bytes[i];h=Math.imul(h,16777619)>>>0;}
+    return h.toString(16);
+  }
+
+  async function syncAnimationSettings(){
+    if(!hostedHardware())return;
+    const p=new URLSearchParams();
+    p.set('speed',String(Math.max(0,Math.min(100,Math.round(Number($('standby-speed').value)||0)))));
+    p.set('direction',$('standby-direction').value==='right'?'1':'0');
+    try{await fetch('/api/animation/settings',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:p.toString(),cache:'no-store'});}catch(_){}
+  }
+
+  async function syncToEsp(force=false){
+    if(!hostedHardware()||animationUploadBusy)return false;
+    const bytes=animationBinary();
+    if(bytes.length<=16)return false;
+    const hash=hashBytes(bytes);
+    if(!force&&hash===lastAnimationHash){await syncAnimationSettings();return true;}
+
+    animationUploadBusy=true;
+    const old=$('sequence-status')?.textContent||'';
+    if($('sequence-status'))$('sequence-status').textContent='Chargement de l’animation dans le CARAC TIMER…';
+    try{
+      const form=new FormData();
+      form.append('animation',new Blob([bytes],{type:'application/octet-stream'}),'carac-animation.bin');
+      const response=await fetch('/api/animation',{method:'POST',body:form,cache:'no-store'});
+      if(!response.ok)throw new Error(`HTTP ${response.status}`);
+      const result=await response.json();
+      if(!result.ok)throw new Error(result.error||'chargement refusé');
+      lastAnimationHash=hash;
+      if($('sequence-status'))$('sequence-status').textContent=`${activeItems().length} élément(s) · animation chargée dans l’ESP · lecture locale fluide`;
+      return true;
+    }catch(e){
+      if($('sequence-status'))$('sequence-status').textContent=`Échec du chargement animation : ${e.message}`;
+      return false;
+    }finally{
+      animationUploadBusy=false;
+    }
+  }
+
+  function queueUpload(){
+    clearTimeout(uploadTimer);
+    uploadTimer=setTimeout(()=>{if(mode==='standby')syncToEsp(false);},350);
+  }
+
   function add(name,data,width,height,effect='still') {
     if(sequence.length>=60){notify('Maximum : 60 images par séquence.');return;}
-    sequence.push({name,data:new Uint8ClampedArray(data),width,height,effect,duration:1}); refreshList();
+    sequence.push({name,data:new Uint8ClampedArray(data),width,height,effect,duration:1});
+    refreshList();
+    queueUpload();
   }
   $('add-content').onclick=()=>{
     if(standbyFailed){refreshStandby();return;}
     if(!logoPixels){notify('Le contenu est encore en chargement.');return;}
     add($('standby-content').value==='text'?$('standby-text').value:$('standby-content').selectedOptions[0].textContent,logoPixels,standbyWidth,standbyHeight,'scroll');
   };
-  $('play-sequence').onclick=()=>{document.querySelector('[data-mode="standby"]').click();restart();playing=true;};
+  $('play-sequence').onclick=async()=>{document.querySelector('[data-mode="standby"]').click();restart();playing=true;await syncToEsp(true);};
   $('company-loop').onclick=async()=>{
     const button=$('company-loop'), selector=$('standby-content');
     const original=selector.value;
@@ -726,11 +827,12 @@ const animationEditor = (() => {
       sequence.splice(0,sequence.length,...prepared);refreshList();
       document.querySelector('[data-mode="standby"]').click();restart();playing=true;
       if(Number($('standby-speed').value)===0){$('standby-speed').value='12';$('speed-label').textContent='12 %';}
-      notify('Boucle des six logos lancée. Vous pouvez modifier leur ordre, leur effet et la vitesse.');
+      await syncToEsp(true);notify('Boucle des six logos chargée dans l’écran. Lecture locale fluide, indépendante du Wi-Fi.');
     }catch{notify('Un logo ne peut pas être chargé. Votre séquence précédente est conservée.');}
     finally{selector.value=original;selector.disabled=false;button.disabled=false;button.textContent='▶ Boucle des 6 logos';refreshStandby();}
   };
-  $('standby-speed').addEventListener('input',()=>{$('speed-label').textContent=`${$('standby-speed').value} %`; last=performance.now();});
+  $('standby-speed').addEventListener('input',()=>{$('speed-label').textContent=`${$('standby-speed').value} %`; last=performance.now();syncAnimationSettings();});
+  $('standby-direction').addEventListener('change',()=>{restart();syncAnimationSettings();});
   function render() {
     const now=performance.now();
     const dt=playing?now-last:0; last=now; playing=true;
@@ -809,7 +911,7 @@ const animationEditor = (() => {
     notify(`${imported} image(s) chargée(s) dans le dessin.${errors.length?' '+errors.join(' ; '):''}`);
   });
   paintBoard();refreshList();
-  return {render,restart};
+  return {render,restart,syncToEsp,queueUpload};
 })();
 
 </script>
@@ -896,409 +998,3 @@ syncStudio();
 
   // Heure locale à laquelle l'interface s'attend à ce que l'ESP entre en veille.
   // Cette valeur est recalculée au démarrage/reconnexion et à chaque activité connue.
-  let expectedSleepAt=0;
-
-  try{
-    const s=JSON.parse(localStorage.getItem(storageKey)||'{}');
-    if(s.url) input.value=s.url;
-    if(typeof s.enabled==='boolean') enabled.checked=s.enabled;
-  }catch(_){}
-
-  function save(){
-    localStorage.setItem(storageKey,JSON.stringify({
-      url:input.value.trim(),
-      enabled:enabled.checked
-    }));
-  }
-
-  function base(){
-    let v=input.value.trim();
-    if(!v)return'';
-    if(!/^https?:\/\//i.test(v))v='http://'+v;
-    return v.replace(/\/$/,'');
-  }
-
-  function setText(id,v){
-    const el=$(id);
-    if(el)el.textContent=v;
-  }
-
-  function badge(text,state=''){
-    const b=$('remote-hardware-badge');
-    if(!b)return;
-    b.textContent=text;
-    b.dataset.state=state;
-  }
-
-  function ensureBatteryHeader(){
-    if($('remote-battery-mini'))return;
-    const host=document.querySelector('.header-actions')||document.querySelector('header');
-    if(!host)return;
-
-    const el=document.createElement('div');
-    el.id='remote-battery-mini';
-    el.className='remote-battery-mini';
-    el.innerHTML='<span class="mini-battery"><i></i></span><strong>—</strong>';
-    el.title='Batterie télécommande';
-    host.append(el);
-  }
-
-  function updateBattery(pct,voltage,charging=false){
-    ensureBatteryHeader();
-
-    pct=Number(pct);
-    voltage=Number(voltage);
-    charging=!!charging;
-
-    const mini=$('remote-battery-mini');
-
-    if(charging){
-      setText('remote-wifi-battery','EN CHARGE');
-      setText('remote-wifi-voltage','—');
-
-      if(mini){
-        mini.querySelector('strong').textContent='EN CHARGE';
-        mini.querySelector('i').style.width='100%';
-        mini.dataset.level='charging';
-      }
-      return;
-    }
-
-    setText('remote-wifi-battery',Number.isFinite(pct)?`${pct}%`:'—');
-    setText('remote-wifi-voltage',Number.isFinite(voltage)?`${voltage.toFixed(2)} V`:'—');
-
-    if(mini&&Number.isFinite(pct)){
-      mini.querySelector('strong').textContent=`${pct}%`;
-      mini.querySelector('i').style.width=`${Math.max(2,Math.min(100,pct))}%`;
-      mini.dataset.level=pct<=15?'critical':pct<=35?'low':'ok';
-    }
-  }
-
-  function armSleepPrediction(now=Date.now()){
-    if(sleepTimeout>0){
-      expectedSleepAt=now+(sleepTimeout*1000);
-    }else{
-      expectedSleepAt=0;
-    }
-  }
-
-  function processAction(s,now){
-    const counter=Number(s.counter);
-    if(!Number.isFinite(counter))return;
-
-    if(lastCounter===null){
-      lastCounter=counter;
-      return;
-    }
-
-    if(counter<=lastCounter)return;
-
-    lastCounter=counter;
-
-    // Une commande physique est considérée comme une activité :
-    // on repart pour un délai de veille complet.
-    armSleepPrediction(now);
-    const action=String(s.last_action||'').toUpperCase();
-    if(!['PLAY','PAUSE','RESET'].includes(action))return;
-
-    if(typeof command==='function'){
-      command(action,'Télécommande physique');
-    }
-
-    if(typeof log==='function'){
-      log(`Télécommande physique · ${action} · compteur ${counter}`);
-    }
-  }
-
-  function updateSleepRow(s){
-    let sleepRow=$('remote-wifi-sleep');
-
-    if(!sleepRow){
-      const dl=document.querySelector('.remote-hardware-status');
-      if(dl){
-        const div=document.createElement('div');
-        div.innerHTML='<dt>Veille auto</dt><dd id="remote-wifi-sleep">—</dd>';
-        dl.append(div);
-        sleepRow=$('remote-wifi-sleep');
-      }
-    }
-
-    if(!sleepRow)return;
-
-    if(!s.sleep_enabled || !sleepTimeout){
-      sleepRow.textContent='Jamais';
-      return;
-    }
-
-    if(sleepTimeout>=3600 && sleepTimeout%3600===0){
-      const h=sleepTimeout/3600;
-      sleepRow.textContent=`${h} h`;
-    }else{
-      sleepRow.textContent=`${Math.round(sleepTimeout/60)} min`;
-    }
-  }
-
-  function classifyDisconnect(now){
-    // Le moment important est la PREMIÈRE perte de réponse,
-    // pas le temps écoulé depuis la dernière réponse.
-    const disconnectAt=firstFailureAt||now;
-
-    if(sleepTimeout>0 && expectedSleepAt>0){
-      const delta=Math.abs(disconnectAt-expectedSleepAt);
-
-      if(delta<=SLEEP_TOLERANCE_MS){
-        return 'sleep';
-      }
-    }
-
-    return 'offline';
-  }
-
-  async function poll(){
-    if(!enabled.checked){
-      badge('DÉSACTIVÉ');
-      setText('remote-wifi-status','Désactivée');
-      wasOnline=false;
-      firstFailureAt=0;
-      expectedSleepAt=0;
-      return;
-    }
-
-    const url=base();
-    if(!url){
-      badge('ADRESSE ?');
-      return;
-    }
-
-    const requestStartedAt=Date.now();
-
-    try{
-      const controller=new AbortController();
-      const to=setTimeout(()=>controller.abort(),1800);
-
-      const r=await fetch(
-        url+'/status?ts='+Date.now(),
-        {cache:'no-store',signal:controller.signal}
-      );
-
-      clearTimeout(to);
-
-      if(!r.ok)throw new Error('HTTP '+r.status);
-
-      const s=await r.json();
-      const now=Date.now();
-
-      const previousSleepTimeout=sleepTimeout;
-      sleepTimeout=Number(s.sleep_timeout_s)||0;
-
-      // Première réponse après démarrage/reconnexion :
-      // on prend ce moment comme début de notre fenêtre de surveillance.
-      if(!wasOnline){
-        armSleepPrediction(now);
-      }
-
-      // Si le délai de veille vient d'être modifié, on recalcule également.
-      if(previousSleepTimeout!==sleepTimeout){
-        armSleepPrediction(now);
-      }
-
-      wasOnline=true;
-      lastSuccessAt=now;
-      firstFailureAt=0;
-
-      badge('EN LIGNE','online');
-      setText('remote-wifi-status','Connectée');
-
-      setText(
-        'remote-wifi-rssi',
-        s.wifi_connected&&Number.isFinite(Number(s.rssi))
-          ?`${s.rssi} dBm`
-          :'—'
-      );
-
-      setText('remote-wifi-command',s.last_action||'—');
-      setText('remote-wifi-counter',String(s.counter??'—'));
-      setText(
-        'remote-system-status',
-        `ESP8266 V${s.firmware||'?'} · ${s.network_mode||''}`.trim()
-      );
-
-      updateBattery(s.battery_percent,s.battery_voltage,s.battery_charging);
-      processAction(s,now);
-      updateSleepRow(s);
-
-    }catch(_){
-      const now=Date.now();
-
-      if(!firstFailureAt){
-        // On utilise le début de la requête qui a échoué comme instant
-        // de coupure approximatif ; c'est plus précis que d'attendre le timeout.
-        firstFailureAt=requestStartedAt;
-      }
-
-      const state=classifyDisconnect(now);
-
-      if(state==='sleep'){
-        badge('EN VEILLE','sleep');
-        setText('remote-wifi-status','En veille');
-        setText('remote-system-status','ESP8266 · veille automatique');
-      }else{
-        const failedFor=now-firstFailureAt;
-
-        if(failedFor<OFFLINE_CONFIRM_MS){
-          badge('CONNEXION…','');
-          setText('remote-wifi-status','Vérification…');
-        }else{
-          badge('ÉTEINTE','offline');
-          setText('remote-wifi-status','Éteinte / inaccessible');
-          setText('remote-system-status','ESP8266 · éteinte ou réseau inaccessible');
-        }
-      }
-
-      setText('remote-wifi-rssi','—');
-      wasOnline=false;
-    }
-  }
-
-  function restartPoll(){
-    save();
-
-    lastCounter=null;
-    sleepTimeout=0;
-    wasOnline=false;
-    lastSuccessAt=0;
-    firstFailureAt=0;
-    expectedSleepAt=0;
-
-    clearInterval(timer);
-    poll();
-    timer=setInterval(poll,1000);
-  }
-
-  enabled.addEventListener('change',restartPoll);
-  reconnect?.addEventListener('click',restartPoll);
-  input.addEventListener('change',restartPoll);
-
-  ensureBatteryHeader();
-  restartPoll();
-})();
-
-</script>
-<script>
-'use strict';
-(()=>{
-  const $=id=>document.getElementById(id);
-  const mode=$('backend-mode'), ip=$('esp-ip'); if(!mode||!ip)return;
-  const key='carac.timer.backend.v1'; let device=new SimulationDevice();
-  let diagnostic=[];
-  try{const s=JSON.parse(localStorage.getItem(key)||'{}');if(s.mode)mode.value=s.mode;if(s.ip)ip.value=s.ip;}catch(_){ }
-  function addLog(message,level='INFO'){const e={time:new Date().toLocaleTimeString('fr-FR'),level,message};diagnostic.unshift(e);diagnostic=diagnostic.slice(0,1000);renderLogs();}
-  function renderLogs(){const pre=$('diagnostic-log');if(pre)pre.textContent=diagnostic.map(x=>`${x.time} [${x.level}] ${x.message}`).join('\n');const c=$('diagnostic-count');if(c)c.textContent=`${diagnostic.length} ENTRÉE${diagnostic.length>1?'S':''}`;}
-  function persist(){localStorage.setItem(key,JSON.stringify({mode:mode.value,ip:ip.value.trim()}));}
-  function selectDevice(){persist();device=mode.value==='esp32'?new Esp32Device(ip.value):new SimulationDevice();$('backend-status').textContent=mode.value==='esp32'?'MATÉRIEL RÉEL':'SIMULATION LOCALE';document.querySelector('header .badge').lastChild.nodeValue=mode.value==='esp32'?' MATÉRIEL RÉEL':' SIMULATION LOCALE';refresh();}
-  async function refresh(){
-    if(mode.value!=='esp32'){setSim();return;}
-    try{device.setBaseUrl(ip.value);const s=await device.status();$('esp-system-status').textContent='Connecté';$('esp-ip-status').textContent=s.ip||ip.value||'—';$('esp-rssi-status').textContent=Number.isFinite(Number(s.rssi))?`${s.rssi} dBm`:'—';$('esp-firmware-status').textContent=s.firmware||'—';$('esp-uptime-status').textContent=s.uptime_s!=null?`${Math.floor(s.uptime_s/60)} min`:'—';}
-    catch(e){$('esp-system-status').textContent='Non connecté';$('esp-ip-status').textContent=ip.value||'—';$('esp-rssi-status').textContent='—';}
-  }
-  function setSim(){$('esp-system-status').textContent='Simulation';$('esp-ip-status').textContent='—';$('esp-rssi-status').textContent='—';$('esp-firmware-status').textContent='simulation-v1.7';$('esp-uptime-status').textContent='—';}
-  mode.addEventListener('change',selectDevice); ip.addEventListener('change',selectDevice);
-  $('esp-restart')?.addEventListener('click',async()=>{try{await device.restart();addLog('Redémarrage demandé au backend.');}catch(e){addLog(e.message,'ERREUR');}});
-  $('run-diagnostics')?.addEventListener('click',async()=>{try{const r=await device.diagnostics();addLog('Auto-diagnostic terminé : '+JSON.stringify(r));}catch(e){addLog(e.message,'ERREUR');}});
-  $('clear-diagnostics')?.addEventListener('click',()=>{diagnostic=[];renderLogs();});
-  function download(ext,data,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type}));a.download=`carac-timer-logs-${Date.now()}.${ext}`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);}
-  $('export-logs-txt')?.addEventListener('click',()=>download('txt',diagnostic.map(x=>`${x.time} [${x.level}] ${x.message}`).join('\n'),'text/plain'));
-  $('export-logs-json')?.addEventListener('click',()=>download('json',JSON.stringify(diagnostic,null,2),'application/json'));
-  const file=$('ota-file'), upload=$('ota-upload'), progress=$('ota-progress'), status=$('ota-status');
-  file?.addEventListener('change',()=>{if(status)status.textContent=file.files[0]?`${file.files[0].name} · prêt`:'Aucun firmware sélectionné.';});
-  upload?.addEventListener('click',async()=>{const f=file?.files?.[0];if(!f)return;if(mode.value!=='esp32'){status.textContent='Passez en Matériel réel pour envoyer un firmware.';return;}try{progress.value=5;status.textContent='Envoi du firmware…';await device.ota(f,p=>progress.value=p);status.textContent='Firmware envoyé. Redémarrage attendu.';addLog(`OTA envoyé : ${f.name}`);}catch(e){status.textContent='Échec OTA : '+e.message;addLog(e.message,'ERREUR');}});
-  $('test-boot-animation')?.addEventListener('click',()=>{addLog('Test cinématique demandé (simulation interface).');});
-  selectDevice();setInterval(refresh,5000);addLog('Interface régie V1.7 initialisée.');
-})();
-
-</script>
-<script>
-
-'use strict';
-(()=>{
-  // Hardware bridge only: no visual change to the validated V1.7.2 interface.
-  const $b=id=>document.getElementById(id);
-  const hosted=/^https?:$/.test(location.protocol);
-  if(hosted){
-    const bm=$b('backend-mode'), bi=$b('esp-ip');
-    if(bm&&bi){
-      bi.value=location.origin;
-      bm.value='esp32';
-      bm.dispatchEvent(new Event('change',{bubbles:true}));
-    }
-  }
-  const panel=$b('matrix'); if(!panel) return;
-  const sample=document.createElement('canvas'); sample.width=64; sample.height=32;
-  const sx=sample.getContext('2d',{willReadFrequently:true}); sx.imageSmoothingEnabled=false;
-  let lastFrame='', frameBusy=false, syncBusy=false, lastSync=0, lastFrameAt=0;
-  function currentValue(){
-    try{ if(mode==='clock'||mode==='off'||mode==='standby') return 0; return Math.round(timers[mode]?.value?.()||0); }catch(_){ return 0; }
-  }
-  function runningNow(){ try{return !!timers[mode]?.running;}catch(_){return false;} }
-  async function syncState(){
-    if(syncBusy) return; syncBusy=true;
-    try{
-      const p=new URLSearchParams();
-      p.set('mode',typeof mode==='string'?mode:'clock');
-      p.set('running',runningNow()?'1':'0');
-      p.set('value_ms',String(currentValue()));
-      p.set('programmed_ms',typeof programmed!=='undefined'?String(Math.round(programmed)):String(300000));
-      p.set('overrun',$b('countdown-overrun')?.checked?'1':'0');
-      p.set('brightness',String(Number($b('brightness')?.value||80)));
-      p.set('color',String($b('color')?.value||'#ffffff').replace('#',''));
-      p.set('digit_size',$b('digit-size')?.value||'medium');
-      p.set('time_format',$b('time-format')?.value||'hms');
-      try{p.set('deadline_epoch',String(Math.round(timers.deadline?.deadline||0)));}catch(_){p.set('deadline_epoch','0');}
-      p.set('remote_url',$b('remote-ip')?.value?.trim()||'http://carac-remote.local');
-      await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:p.toString(),cache:'no-store'});
-    }catch(_){} finally{syncBusy=false;}
-  }
-  function frameHex(){
-    sx.clearRect(0,0,64,32); sx.drawImage(panel,0,0,64,32);
-    const d=sx.getImageData(0,0,64,32).data;
-    const br=Math.max(.01,Number($b('brightness')?.value||80)/100);
-    let out='';
-    for(let i=0;i<2048;i++){
-      let r=d[i*4],g=d[i*4+1],b=d[i*4+2];
-      const lum=Math.max(r,g,b);
-      if(lum<32){r=g=b=0;}else{r=Math.min(255,Math.round(r/br));g=Math.min(255,Math.round(g/br));b=Math.min(255,Math.round(b/br));}
-      const v=((r>>3)<<11)|((g>>2)<<5)|(b>>3); out+=v.toString(16).padStart(4,'0');
-    }
-    return out;
-  }
-  async function pushFrame(){
-    if(frameBusy) return;
-    const h=frameHex(); if(h===lastFrame) return; lastFrame=h; frameBusy=true;
-    try{await fetch('/api/frame',{method:'POST',headers:{'Content-Type':'text/plain'},body:h,cache:'no-store'});}catch(_){}finally{frameBusy=false;}
-  }
-  async function tick(){
-    const now=performance.now();
-    if(now-lastSync>250){lastSync=now;syncState();}
-    if(now-lastFrameAt>125){lastFrameAt=now;pushFrame();}
-    requestAnimationFrame(tick);
-  }
-  const boot=$b('test-boot-animation');
-  if(boot)boot.addEventListener('click',()=>fetch('/api/boot-animation',{method:'POST'}).catch(()=>{}));
-  requestAnimationFrame(tick);
-})();
-
-</script>
-</body></html>
-
-
-
-
-
-
-
-
-
-
-
-
-
