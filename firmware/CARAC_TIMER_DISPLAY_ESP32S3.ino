@@ -508,7 +508,7 @@ void setupWeb() {
   server.on("/api/reset",HTTP_GET,[]{resetTimer();server.send(200,"application/json","{\"ok\":true}");});
   server.on("/api/adjust",HTTP_GET,[]{adjustTimer(server.arg("sec").toInt());server.send(200,"application/json","{\"ok\":true}");});
   server.on("/api/countdown",HTTP_GET,[]{
-    int sec=max(0,server.arg("sec").toInt()); countdownPresetMs=(int64_t)sec*1000LL; storedMs=countdownPresetMs; running=false; setMode(COUNTDOWN); saveSettings();
+    long rawSec=server.arg("sec").toInt(); int sec=(int)(rawSec<0?0:rawSec); countdownPresetMs=(int64_t)sec*1000LL; storedMs=countdownPresetMs; running=false; setMode(COUNTDOWN); saveSettings();
     server.send(200,"application/json","{\"ok\":true}");
   });
   server.on("/api/deadline",HTTP_GET,[]{
