@@ -1,0 +1,61 @@
+name: Build CARAC TIMER Display
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "firmware/CARAC_TIMER_DISPLAY_ESP32S3.ino"
+      - ".github/workflows/build-display.yml"
+  workflow_dispatch:
+
+jobs:
+  build-display:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ESP32 core and libraries
+        run: |
+          arduino-cli config init
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@3.3.12
+          arduino-cli lib install "Adafruit GFX Library"
+
+      - name: Prepare Waveshare HUB75 sources
+        run: |
+          git clone --depth 1 https://github.com/waveshareteam/ESP32-S3-RGB-Matrix.git /tmp/waveshare
+          mkdir -p /tmp/CaracTimerDisplay
+          cp firmware/CARAC_TIMER_DISPLAY_ESP32S3.ino /tmp/CaracTimerDisplay/CaracTimerDisplay.ino
+          cp /tmp/waveshare/example/arduino_v3.3.7/01_SimpleTestShapes/ESP32-HUB75-MatrixPanel-I2S-DMA.cpp /tmp/CaracTimerDisplay/
+          cp /tmp/waveshare/example/arduino_v3.3.7/01_SimpleTestShapes/ESP32-HUB75-MatrixPanel-I2S-DMA.h /tmp/CaracTimerDisplay/
+          cp /tmp/waveshare/example/arduino_v3.3.7/01_SimpleTestShapes/ESP32-HUB75-MatrixPanel-leddrivers.cpp /tmp/CaracTimerDisplay/
+          cp /tmp/waveshare/example/arduino_v3.3.7/01_SimpleTestShapes/ESP32-HUB75-VirtualMatrixPanel_T.hpp /tmp/CaracTimerDisplay/
+          cp -r /tmp/waveshare/example/arduino_v3.3.7/01_SimpleTestShapes/platforms /tmp/CaracTimerDisplay/
+
+      - name: Show Waveshare board
+        run: |
+          arduino-cli board listall | grep -i waveshare || true
+
+      - name: Compile
+        run: |
+          mkdir -p build
+          if arduino-cli board listall | grep -q "waveshare_esp32_s3_rgb_matrix"; then
+            FQBN="esp32:esp32:waveshare_esp32_s3_rgb_matrix"
+          else
+            FQBN="esp32:esp32:esp32s3:FlashSize=32M,PartitionScheme=fatflash,PSRAM=opi,USBMode=hwcdc,CDCOnBoot=cdc"
+          fi
+          echo "Using $FQBN"
+          arduino-cli compile --fqbn "$FQBN" --output-dir "$GITHUB_WORKSPACE/build" /tmp/CaracTimerDisplay
+          cp build/CaracTimerDisplay.ino.bin build/CARAC_TIMER_DISPLAY_V1_0_0_OTA.bin
+          cp firmware/CARAC_TIMER_DISPLAY_ESP32S3.ino build/CARAC_TIMER_DISPLAY_V1_0_0.ino
+
+      - name: Upload OTA
+        uses: actions/upload-artifact@v4
+        with:
+          name: CARAC_TIMER_DISPLAY_V1_0_0_OTA
+          path: |
+            build/CARAC_TIMER_DISPLAY_V1_0_0_OTA.bin
+            build/CARAC_TIMER_DISPLAY_V1_0_0.ino
+          if-no-files-found: error
