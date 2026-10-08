@@ -12,7 +12,7 @@
 
 // ============================================================
 // CARAC TIMER DISPLAY — ESP32-S3 MASTER
-// V2.0.0 FINAL INTERFACE
+// V2.0.1 FINAL INTERFACE
 //
 // New architecture:
 // - ESP32-S3 is the timing master.
@@ -25,7 +25,7 @@
 // - Web OTA + ArduinoOTA remain available for future versions.
 // ============================================================
 
-#define FW_VERSION "2.0.0"
+#define FW_VERSION "2.0.1"
 #define PANEL_W 64
 #define PANEL_H 32
 #define PANEL_CHAIN 1
@@ -464,7 +464,12 @@ uint32_t unitColorFor(const String& unit) {
   return hwColor;
 }
 
-void drawBitmapText(const String& text, int64_t logicalValue, bool inverted = false) {
+void drawBitmapTextLayer(
+  const String& text,
+  int64_t logicalValue,
+  bool inverted,
+  bool clearBackground
+) {
   int digitWidth = 5;
   int height = 14;
   int colonWidth = 1;
@@ -498,10 +503,9 @@ void drawBitmapText(const String& text, int64_t logicalValue, bool inverted = fa
   uint32_t baseRgb = timerBaseColor(logicalValue);
   uint16_t base565 = rgb565(baseRgb);
 
-  if (inverted) {
-    matrix->fillScreen(base565);
-  } else {
-    matrix->clearScreen();
+  if (clearBackground) {
+    if (inverted) matrix->fillScreen(base565);
+    else matrix->clearScreen();
   }
 
   int group = 0;
@@ -541,6 +545,16 @@ void drawBitmapText(const String& text, int64_t logicalValue, bool inverted = fa
   }
 }
 
+void drawBitmapText(const String& text, int64_t logicalValue, bool inverted = false) {
+  drawBitmapTextLayer(text, logicalValue, inverted, true);
+  presentFrame();
+}
+
+void drawBitmapTextOverlay(const String& text, int64_t logicalValue, bool inverted = false) {
+  drawBitmapTextLayer(text, logicalValue, inverted, false);
+}
+
+
 // ============================================================
 // Matrix
 // ============================================================
@@ -565,6 +579,7 @@ void setupMatrix() {
 
   cfg.clkphase = false;
   cfg.driver = HUB75_I2S_CFG::SHIFTREG;
+  cfg.double_buff = true;
   cfg.i2sspeed = HUB75_I2S_CFG::HZ_16M;
   cfg.min_refresh_rate = 240;
 
@@ -586,6 +601,7 @@ void setupMatrix() {
   C_ORANGE = matrix->color565(255, 105, 56);
 
   matrix->clearScreen();
+  presentFrame();
 }
 
 void textCenter(const String& s, int y, uint16_t c, uint8_t size = 1) {
@@ -602,6 +618,15 @@ void textCenter(const String& s, int y, uint16_t c, uint8_t size = 1) {
   matrix->print(s);
 }
 
+inline void presentFrame() {
+  matrix->flipDMABuffer();
+}
+
+void showPanelMessage(const String& text, uint16_t color, uint8_t size = 1, int y = 10) {
+  matrix->clearScreen();
+  textCenter(text, y, color, size);
+  presentFrame();
+}
 
 void hsvWheel(uint16_t hue, uint8_t& r, uint8_t& g, uint8_t& b) {
   hue %= 1536;
@@ -693,6 +718,7 @@ void startupAnimation() {
         matrix->drawPixel(x, y, matrix->color565(r, g, b));
       }
     }
+    presentFrame();
     delay(24);
   }
 
@@ -700,25 +726,31 @@ void startupAnimation() {
   const uint16_t rgbFlashes[] = {C_RED, C_GREEN, C_BLUE};
   for (int i = 0; i < 3; i++) {
     matrix->fillScreen(rgbFlashes[i]);
+    presentFrame();
     delay(75);
     matrix->clearScreen();
+    presentFrame();
     delay(35);
   }
 
   // 3) Three white flashes.
   for (int i = 0; i < 3; i++) {
     matrix->fillScreen(C_WHITE);
+    presentFrame();
     delay(90);
     matrix->clearScreen();
+    presentFrame();
     delay(105);
   }
 
   // 4) Real CARAC logo, black -> white, smooth 0 to 100%.
   for (int level = 0; level <= 255; level += 6) {
     drawCaracLogoWhite((uint8_t)level);
+    presentFrame();
     delay(32);
   }
   drawCaracLogoWhite(255);
+  presentFrame();
   delay(180);
 
   // 5) White burst / flash.
@@ -726,20 +758,25 @@ void startupAnimation() {
     float radius = 2.0f + step * 4.0f;
     uint8_t intensity = (uint8_t)min(255, 100 + step * 15);
     drawLogoBurst(radius, intensity);
+    presentFrame();
     delay(28);
   }
 
   matrix->fillScreen(C_WHITE);
+  presentFrame();
   delay(85);
   matrix->clearScreen();
+  presentFrame();
   delay(55);
 
   // 6) Reveal the CARAC logo in its validated colors.
   for (int level = 20; level <= 255; level += 16) {
     drawCaracLogoColor((uint8_t)level);
+    presentFrame();
     delay(30);
   }
   drawCaracLogoColor(255);
+  presentFrame();
   delay(650);
 }
 
@@ -882,31 +919,46 @@ String formatTimer(int64_t value) {
 String formatClock() {
   int64_t epoch = localClockEpochMs();
 
-  time_t sec = (time_t)(epoch / 1000LL);
+  time_t secEpoch = (time_t)(epoch / 1000LL);
   struct tm t;
-  localtime_r(&sec, &t);
+  localtime_r(&secEpoch, &t);
 
-  char b[20];
-
+  int hour = t.tm_hour;
   if (clock12h) {
-    int hour = t.tm_hour % 12;
+    hour %= 12;
     if (hour == 0) hour = 12;
+  }
 
-    if (clockShowSeconds) {
-      snprintf(b, sizeof(b), "%02d:%02d:%02d", hour, t.tm_min, t.tm_sec);
-    } else {
-      snprintf(b, sizeof(b), "%02d:%02d", hour, t.tm_min);
-    }
+  unsigned h = (unsigned)hour;
+  unsigned m = (unsigned)t.tm_min;
+  unsigned sec = (unsigned)t.tm_sec;
+  unsigned centi = (unsigned)((epoch % 1000LL + 1000LL) % 1000LL) / 10U;
+
+  char b[32];
+
+  if (hwTimeFormat == "hmsms") {
+    snprintf(b, sizeof(b), "%02u:%02u:%02u.%02u", h, m, sec, centi);
+  } else if (hwTimeFormat == "msms") {
+    snprintf(b, sizeof(b), "%02u:%02u.%02u", m, sec, centi);
+  } else if (hwTimeFormat == "ms") {
+    snprintf(b, sizeof(b), "%02u:%02u", m, sec);
+  } else if (hwTimeFormat == "sms") {
+    snprintf(b, sizeof(b), "%02u.%02u", sec, centi);
+  } else if (hwTimeFormat == "hm") {
+    snprintf(b, sizeof(b), "%02u:%02u", h, m);
+  } else if (hwTimeFormat == "s") {
+    snprintf(b, sizeof(b), "%02u", sec);
+  } else if (hwTimeFormat == "m") {
+    snprintf(b, sizeof(b), "%02u", m);
+  } else if (hwTimeFormat == "millis") {
+    snprintf(b, sizeof(b), "%02u", centi);
   } else {
-    if (clockShowSeconds) {
-      snprintf(b, sizeof(b), "%02d:%02d:%02d", t.tm_hour, t.tm_min, t.tm_sec);
-    } else {
-      snprintf(b, sizeof(b), "%02d:%02d", t.tm_hour, t.tm_min);
-    }
+    snprintf(b, sizeof(b), "%02u:%02u:%02u", h, m, sec);
   }
 
   return String(b);
 }
+
 
 // ============================================================
 // Alert / prestart
@@ -936,6 +988,14 @@ void drawCircleOutline(float cx, float cy, float r, uint16_t color) {
       float dy = y - cy;
       float d = sqrtf(dx * dx + dy * dy);
       if (fabsf(d - r) < 0.65f) matrix->drawPixel(x, y, color);
+    }
+  }
+}
+
+void clearCenterForPrestartNumber() {
+  for (int y = 7; y < 25; y++) {
+    for (int x = 23; x < 41; x++) {
+      matrix->drawPixel(x, y, C_BLACK);
     }
   }
 }
@@ -977,6 +1037,7 @@ void drawPrestart() {
       }
     }
 
+    presentFrame();
     return;
   }
 
@@ -984,17 +1045,24 @@ void drawPrestart() {
   String number = String(n);
 
   if (prestartStyle == "fill") {
-    int h = floorf(progress * 32.0f);
+    int hh = floorf(progress * 32.0f);
     uint16_t c = rgb565(hwColor);
 
-    for (int y = 32 - h; y < 32; y++) {
+    for (int y = 32 - hh; y < 32; y++) {
       for (int x = 0; x < 64; x++) matrix->drawPixel(x, y, c);
     }
 
+    clearCenterForPrestartNumber();
+
     String oldSize = hwDigitSize;
+    uint32_t oldColor = hwColor;
     hwDigitSize = "medium";
-    drawBitmapText(number, 1, false);
+    hwColor = 0xFFFFFF;
+    drawBitmapTextOverlay(number, 1, false);
+    hwColor = oldColor;
     hwDigitSize = oldSize;
+
+    presentFrame();
     return;
   }
 
@@ -1020,13 +1088,17 @@ void drawPrestart() {
     drawCircleOutline(31.5f, 15.5f, 14.0f, C_WHITE);
     drawCircleOutline(31.5f, 15.5f, 12.0f, matrix->color565(160, 160, 160));
 
+    clearCenterForPrestartNumber();
+
     String oldSize = hwDigitSize;
     uint32_t oldColor = hwColor;
     hwDigitSize = "medium";
     hwColor = 0xFFFFFF;
-    drawBitmapText(number, 1, false);
+    drawBitmapTextOverlay(number, 1, false);
     hwColor = oldColor;
     hwDigitSize = oldSize;
+
+    presentFrame();
     return;
   }
 
@@ -1057,17 +1129,19 @@ void drawPrestart() {
     uint32_t oldColor = hwColor;
     hwDigitSize = "medium";
     hwColor = 0xFFFFFF;
-    drawBitmapText(number, 1, false);
+    drawBitmapTextOverlay(number, 1, false);
     hwColor = oldColor;
     hwDigitSize = oldSize;
+
+    presentFrame();
     return;
   }
 
-  // Classic
   String oldSize = hwDigitSize;
   hwDigitSize = "medium";
-  drawBitmapText(number, 1, false);
+  drawBitmapTextOverlay(number, 1, false);
   hwDigitSize = oldSize;
+  presentFrame();
 }
 
 
@@ -1203,6 +1277,7 @@ void drawAnimationInterpolated() {
   if (!animLoaded || animItemCount == 0 || !animBlob) {
     matrix->clearScreen();
     textCenter("CARAC", 8, rgb565(hwColor), 2);
+    presentFrame();
     return;
   }
 
@@ -1245,6 +1320,7 @@ void drawAnimationInterpolated() {
         if (c != 0) matrix->drawPixel(dx, dy, c);
       }
     }
+    presentFrame();
     return;
   }
 
@@ -1288,6 +1364,8 @@ void drawAnimationInterpolated() {
       matrix->drawPixel(x, y, matrix->color565(r, g, b));
     }
   }
+
+  presentFrame();
 }
 
 // ============================================================
@@ -1328,6 +1406,7 @@ void drawDisplay() {
   if ((int32_t)(millis() - startBlackoutUntil) < 0) {
     if (lastRenderKey != "BLACKOUT") {
       matrix->clearScreen();
+      presentFrame();
       lastRenderKey = "BLACKOUT";
     }
     return;
@@ -1336,6 +1415,7 @@ void drawDisplay() {
   if (hwMode == "off") {
     if (lastRenderKey != "OFF") {
       matrix->clearScreen();
+      presentFrame();
       lastRenderKey = "OFF";
     }
     return;
@@ -1345,6 +1425,7 @@ void drawDisplay() {
     if (lastRenderKey != "STANDBY_DEFAULT") {
       matrix->clearScreen();
       textCenter("CARAC", 8, rgb565(hwColor), 2);
+      presentFrame();
       lastRenderKey = "STANDBY_DEFAULT";
     }
     return;
@@ -1416,6 +1497,7 @@ void drawDisplay() {
 
   if (lastRenderKey != "UNKNOWN") {
     matrix->clearScreen();
+    presentFrame();
     lastRenderKey = "UNKNOWN";
   }
 }
@@ -2282,7 +2364,7 @@ void setupWeb() {
           "{\"ok\":false}"
       );
 
-      delay(650);
+      delay(1800);
 
       if (ok) ESP.restart();
     },
@@ -2291,8 +2373,7 @@ void setupWeb() {
 
       if (u.status == UPLOAD_FILE_START) {
         otaActive = true;
-        matrix->clearScreen();
-        textCenter("UPDATE", 10, C_YELLOW, 1);
+        showPanelMessage("UPDATE", C_YELLOW, 1, 10);
 
         if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
           Update.printError(Serial);
@@ -2307,12 +2388,10 @@ void setupWeb() {
 
       else if (u.status == UPLOAD_FILE_END) {
         if (Update.end(true)) {
-          matrix->clearScreen();
-          textCenter("OTA OK", 10, C_GREEN, 1);
+          showPanelMessage("OTA OK", C_GREEN, 1, 10);
         } else {
           Update.printError(Serial);
-          matrix->clearScreen();
-          textCenter("OTA ERR", 10, C_RED, 1);
+          showPanelMessage("OTA ERR", C_RED, 1, 10);
           otaActive = false;
         }
       }
@@ -2337,26 +2416,22 @@ void setupArduinoOTA() {
 
   ArduinoOTA.onStart([]() {
     otaActive = true;
-    matrix->clearScreen();
-    textCenter("UPDATE", 10, C_YELLOW, 1);
+    showPanelMessage("UPDATE", C_YELLOW, 1, 10);
     addLog("Arduino OTA START");
   });
 
   ArduinoOTA.onProgress([](unsigned int p, unsigned int t) {
     int pct = t ? (p * 100U / t) : 0;
 
-    matrix->clearScreen();
-    textCenter(String(pct) + "%", 10, C_WHITE, 1);
+    showPanelMessage(String(pct) + "%", C_WHITE, 1, 10);
   });
 
   ArduinoOTA.onEnd([]() {
-    matrix->clearScreen();
-    textCenter("OTA OK", 10, C_GREEN, 1);
+    showPanelMessage("OTA OK", C_GREEN, 1, 10);
   });
 
   ArduinoOTA.onError([](ota_error_t) {
-    matrix->clearScreen();
-    textCenter("OTA ERR", 10, C_RED, 1);
+    showPanelMessage("OTA ERR", C_RED, 1, 10);
     otaActive = false;
   });
 
@@ -2397,12 +2472,11 @@ void loop() {
 
   maintainWifi();
 
-  // If Wi-Fi came back after boot failure, NTP will resync automatically
-  // once connectivity exists. Calling configTzTime repeatedly is not needed.
-  pollRemote();
-
-  drawDisplay();
-  servicePrefs();
+  if (!otaActive) {
+    pollRemote();
+    drawDisplay();
+    servicePrefs();
+  }
 
   delay(1);
 }
