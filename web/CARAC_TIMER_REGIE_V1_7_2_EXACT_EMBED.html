@@ -109,7 +109,7 @@ body{font-family:"ABC Favorit","Segoe UI",Arial,sans-serif}
   <p>Appui court : PLAY / PAUSE sur le mode temporel affiché. Appui long 1,5 s : RESET. L’interface ignore les anciennes commandes lors d’une reconnexion.</p>
 </section>
 <div class="maintenance-grid">
-  <section class="maintenance-card"><h3>Maintenance rapide</h3><div class="editor-toolbar"><button id="esp-restart" type="button" class="danger-action">↻ Redémarrer l’ESP</button><button id="test-boot-animation" type="button">▶ Tester la cinématique</button></div><label class="overrun-option"><input id="startup-animation-enabled" type="checkbox" checked> Cinématique au démarrage</label><p>Logo CARAC → fondu de toutes les couleurs → 2 flashes blancs rapides.</p></section>
+  <section class="maintenance-card"><h3>Maintenance rapide</h3><div class="editor-toolbar"><button id="esp-restart" type="button" class="danger-action">↻ Redémarrer l’ESP</button><button id="test-boot-animation" type="button">▶ Tester la cinématique</button></div><label class="overrun-option"><input id="startup-animation-enabled" type="checkbox" checked> Cinématique au démarrage</label><p>Arc-en-ciel → flashes RGB → 3 flashes blancs → logo CARAC blanc progressif → burst → logo couleur.</p></section>
   <section class="maintenance-card"><h3>Diagnostic</h3><label class="overrun-option"><input id="diagnostic-mode" type="checkbox"> Mode diagnostic détaillé</label><div class="editor-toolbar"><button id="run-diagnostics" type="button">Lancer l’auto-diagnostic</button><button id="clear-diagnostics" type="button">Effacer les logs</button></div><div class="editor-toolbar"><button id="export-logs-txt" type="button">Exporter .TXT</button><button id="export-logs-json" type="button">Exporter .JSON</button></div></section>
 </div>
 <section class="ota-panel"><div class="section-head"><h3>Mise à jour sans câble USB</h3><span>OTA</span></div><p>Charge un firmware <code>.bin</code> depuis la régie. En matériel réel, l’ESP reçoit le fichier par Wi‑Fi puis redémarre automatiquement après validation.</p><div class="editor-toolbar"><input id="ota-file" type="file" accept=".bin,application/octet-stream"><button id="ota-upload" type="button" class="primary">Mettre à jour l’ESP</button></div><progress id="ota-progress" max="100" value="0"></progress><p id="ota-status" role="status">Aucun firmware sélectionné.</p></section>
@@ -152,16 +152,16 @@ class Esp32Device {
   constructor(baseUrl){ this.baseUrl=this.normalize(baseUrl); }
   normalize(v){ v=(v||'').trim(); if(!v) return ''; if(!/^https?:\/\//i.test(v)) v='http://'+v; return v.replace(/\/$/,''); }
   setBaseUrl(v){ this.baseUrl=this.normalize(v); }
-  async request(path, options={}){
+  async request(path, options={}, timeoutMs=2500){
     if(!this.baseUrl) throw new Error('Adresse ESP32-S3 non configurée.');
     const controller=new AbortController();
-    const timer=setTimeout(()=>controller.abort(), 2500);
+    const timer=timeoutMs>0 ? setTimeout(()=>controller.abort(), timeoutMs) : null;
     try{
       const response=await fetch(this.baseUrl+path,{cache:'no-store',signal:controller.signal,...options});
       if(!response.ok) throw new Error(`HTTP ${response.status}`);
       const type=response.headers.get('content-type')||'';
       return type.includes('application/json') ? response.json() : response.text();
-    } finally { clearTimeout(timer); }
+    } finally { if(timer) clearTimeout(timer); }
   }
   status(){ return this.request('/api/status'); }
   post(path){ return this.request(path,{method:'POST'}); }
@@ -173,7 +173,7 @@ class Esp32Device {
     if(!this.baseUrl) throw new Error('Adresse ESP32-S3 non configurée.');
     const form=new FormData(); form.append('firmware',file,file.name);
     if(typeof onProgress==='function') onProgress(10);
-    const result=await this.request('/api/ota',{method:'POST',body:form});
+    const result=await this.request('/api/ota',{method:'POST',body:form},180000);
     if(typeof onProgress==='function') onProgress(100);
     return result;
   }
