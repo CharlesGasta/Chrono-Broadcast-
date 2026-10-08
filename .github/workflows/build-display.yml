@@ -24,7 +24,7 @@ jobs:
           arduino-cli core install esp32:esp32@3.3.12
           arduino-cli lib install "Adafruit GFX Library"
 
-      - name: Prepare Waveshare HUB75 sources and exact V1.7.2 web UI
+      - name: Prepare Waveshare HUB75 sources and CARAC TIMER V2 web UI
         run: |
           git clone --depth 1 https://github.com/waveshareteam/ESP32-S3-RGB-Matrix.git /tmp/waveshare
           mkdir -p /tmp/CaracTimerDisplay
@@ -57,16 +57,16 @@ jobs:
           FQBN="esp32:esp32:waveshare_esp32_s3_rgb_matrix"
           echo "Using $FQBN"
           arduino-cli compile --fqbn "$FQBN" --output-dir "$GITHUB_WORKSPACE/build" /tmp/CaracTimerDisplay
-          cp build/CaracTimerDisplay.ino.bin build/CARAC_TIMER_DISPLAY_V1_8_0_EXACT_OTA.bin
-          cp firmware/CARAC_TIMER_DISPLAY_ESP32S3.ino build/CARAC_TIMER_DISPLAY_V1_8_0_EXACT.ino
-          cp web/CARAC_TIMER_REGIE_V1_7_2_EXACT_EMBED.html build/CARAC_TIMER_REGIE_V1_7_2_EXACT_INTERFACE.html
+          cp build/CaracTimerDisplay.ino.bin build/CARAC_TIMER_DISPLAY_V2_0_0_FINAL_OTA.bin
+          cp firmware/CARAC_TIMER_DISPLAY_ESP32S3.ino build/CARAC_TIMER_DISPLAY_V2_0_0_FINAL.ino
+          cp web/CARAC_TIMER_REGIE_V1_7_2_EXACT_EMBED.html build/CARAC_TIMER_REGIE_V2_0_FINAL.html
 
       - name: Upload OTA
         uses: actions/upload-artifact@v4
         with:
-          name: CARAC_TIMER_DISPLAY_V1_8_0_EXACT_OTA
+          name: CARAC_TIMER_DISPLAY_V2_0_0_FINAL_OTA
           path: |
-            build/CARAC_TIMER_DISPLAY_V1_8_0_EXACT_OTA.bin
-            build/CARAC_TIMER_DISPLAY_V1_8_0_EXACT.ino
+            build/CARAC_TIMER_DISPLAY_V2_0_0_FINAL_OTA.bin
+            build/CARAC_TIMER_DISPLAY_V2_0_0_FINAL.ino
             build/CARAC_TIMER_REGIE_V1_7_2_EXACT_INTERFACE.html
           if-no-files-found: error
