@@ -12,7 +12,7 @@
 
 // ============================================================
 // CARAC TIMER DISPLAY — ESP32-S3 MASTER
-// V2.0.1 FINAL INTERFACE
+// V2.0.3 CONTROL + FLASH FIX
 //
 // New architecture:
 // - ESP32-S3 is the timing master.
@@ -25,14 +25,17 @@
 // - Web OTA + ArduinoOTA remain available for future versions.
 // ============================================================
 
-#define FW_VERSION "2.0.1"
+#define FW_VERSION "2.0.3"
 #define PANEL_W 64
 #define PANEL_H 32
 #define PANEL_CHAIN 1
 
 const char* HOSTNAME = "carac-timer";
 
-// OTA build: reuse Wi-Fi credentials already stored in ESP NVS.
+// Home Wi-Fi for this USB recovery build.
+const char* WIFI_SSID = "Sarah_Charles_Home";
+const char* WIFI_PASSWORD = "Faussettes";
+
 const char* RESCUE_SSID = "CARAC-TIMER-SETUP";
 const char* RESCUE_PASS = "CaracTimer2026";
 
@@ -554,7 +557,6 @@ void drawBitmapTextOverlay(const String& text, int64_t logicalValue, bool invert
   drawBitmapTextLayer(text, logicalValue, inverted, false);
 }
 
-
 // ============================================================
 // Matrix
 // ============================================================
@@ -628,6 +630,7 @@ void showPanelMessage(const String& text, uint16_t color, uint8_t size = 1, int 
   presentFrame();
 }
 
+
 void hsvWheel(uint16_t hue, uint8_t& r, uint8_t& g, uint8_t& b) {
   hue %= 1536;
   uint8_t region = hue / 256;
@@ -682,6 +685,45 @@ void drawCaracLogoColor(uint8_t level) {
       b = ((uint16_t)b * scale) / 255U;
 
       matrix->drawPixel(x0 + x, y0 + y, matrix->color565(r, g, b));
+    }
+  }
+}
+
+// Full-screen white flash fading away to reveal the color CARAC logo underneath.
+// whiteLevel=255 -> 100% white panel, whiteLevel=0 -> final color logo on black.
+void drawCaracLogoUnderWhiteFade(uint8_t whiteLevel) {
+  const int x0 = (64 - CARAC_LOGO_W) / 2;
+  const int y0 = (32 - CARAC_LOGO_H) / 2;
+
+  for (int y = 0; y < 32; y++) {
+    for (int x = 0; x < 64; x++) {
+      uint8_t baseR = 0, baseG = 0, baseB = 0;
+
+      const int lx = x - x0;
+      const int ly = y - y0;
+
+      if (lx >= 0 && lx < CARAC_LOGO_W && ly >= 0 && ly < CARAC_LOGO_H) {
+        const int i = ly * CARAC_LOGO_W + lx;
+        const uint16_t c = pgm_read_word(&CARAC_LOGO_RGB565[i]);
+        const uint8_t alpha = pgm_read_byte(&CARAC_LOGO_ALPHA[i]);
+
+        if (c != 0 && alpha != 0) {
+          uint8_t r = ((c >> 11) & 0x1F) << 3;
+          uint8_t g = ((c >> 5) & 0x3F) << 2;
+          uint8_t b = (c & 0x1F) << 3;
+
+          baseR = ((uint16_t)r * alpha) / 255U;
+          baseG = ((uint16_t)g * alpha) / 255U;
+          baseB = ((uint16_t)b * alpha) / 255U;
+        }
+      }
+
+      const uint16_t inv = 255U - whiteLevel;
+      const uint8_t outR = (uint8_t)(((uint16_t)baseR * inv + (uint16_t)255U * whiteLevel) / 255U);
+      const uint8_t outG = (uint8_t)(((uint16_t)baseG * inv + (uint16_t)255U * whiteLevel) / 255U);
+      const uint8_t outB = (uint8_t)(((uint16_t)baseB * inv + (uint16_t)255U * whiteLevel) / 255U);
+
+      matrix->drawPixel(x, y, matrix->color565(outR, outG, outB));
     }
   }
 }
@@ -753,31 +795,22 @@ void startupAnimation() {
   presentFrame();
   delay(180);
 
-  // 5) White burst / flash.
-  for (int step = 0; step < 11; step++) {
-    float radius = 2.0f + step * 4.0f;
-    uint8_t intensity = (uint8_t)min(255, 100 + step * 15);
-    drawLogoBurst(radius, intensity);
+  // 5) Clean full-screen white flash, then smooth fade-down.
+  // The color CARAC logo is already "under" the white layer and is progressively revealed.
+  matrix->fillScreen(C_WHITE);
+  presentFrame();
+  delay(95);
+
+  for (int white = 255; white >= 0; white -= 10) {
+    drawCaracLogoUnderWhiteFade((uint8_t)white);
     presentFrame();
     delay(28);
   }
 
-  matrix->fillScreen(C_WHITE);
-  presentFrame();
-  delay(85);
-  matrix->clearScreen();
-  presentFrame();
-  delay(55);
-
-  // 6) Reveal the CARAC logo in its validated colors.
-  for (int level = 20; level <= 255; level += 16) {
-    drawCaracLogoColor((uint8_t)level);
-    presentFrame();
-    delay(30);
-  }
+  // 6) Final validated CARAC logo in color.
   drawCaracLogoColor(255);
   presentFrame();
-  delay(650);
+  delay(700);
 }
 
 // ============================================================
@@ -931,42 +964,40 @@ String formatClock() {
 
   unsigned h = (unsigned)hour;
   unsigned m = (unsigned)t.tm_min;
-  unsigned sec = (unsigned)t.tm_sec;
+  unsigned s = (unsigned)t.tm_sec;
   unsigned centi = (unsigned)((epoch % 1000LL + 1000LL) % 1000LL) / 10U;
 
   char b[32];
 
   if (hwTimeFormat == "hmsms") {
-    snprintf(b, sizeof(b), "%02u:%02u:%02u.%02u", h, m, sec, centi);
+    snprintf(b, sizeof(b), "%02u:%02u:%02u.%02u", h, m, s, centi);
   } else if (hwTimeFormat == "msms") {
-    snprintf(b, sizeof(b), "%02u:%02u.%02u", m, sec, centi);
+    snprintf(b, sizeof(b), "%02u:%02u.%02u", m, s, centi);
   } else if (hwTimeFormat == "ms") {
-    snprintf(b, sizeof(b), "%02u:%02u", m, sec);
+    snprintf(b, sizeof(b), "%02u:%02u", m, s);
   } else if (hwTimeFormat == "sms") {
-    snprintf(b, sizeof(b), "%02u.%02u", sec, centi);
+    snprintf(b, sizeof(b), "%02u.%02u", s, centi);
   } else if (hwTimeFormat == "hm") {
     snprintf(b, sizeof(b), "%02u:%02u", h, m);
   } else if (hwTimeFormat == "s") {
-    snprintf(b, sizeof(b), "%02u", sec);
+    snprintf(b, sizeof(b), "%02u", s);
   } else if (hwTimeFormat == "m") {
     snprintf(b, sizeof(b), "%02u", m);
   } else if (hwTimeFormat == "millis") {
     snprintf(b, sizeof(b), "%02u", centi);
   } else {
-    snprintf(b, sizeof(b), "%02u:%02u:%02u", h, m, sec);
+    snprintf(b, sizeof(b), "%02u:%02u:%02u", h, m, s);
   }
 
   return String(b);
 }
-
 
 // ============================================================
 // Alert / prestart
 // ============================================================
 
 bool alertInvertedNow() {
-  if (!alertActive) return false;
-  return ((millis() - alertStartedMs) / 500UL) % 2UL == 0;
+  if (!alertActive) return false;  return ((millis() - alertStartedMs) / 500UL) % 2UL == 0;
 }
 
 void drawCircleFilled(int cx, int cy, float r, uint16_t color) {
@@ -1045,10 +1076,10 @@ void drawPrestart() {
   String number = String(n);
 
   if (prestartStyle == "fill") {
-    int hh = floorf(progress * 32.0f);
+    int h = floorf(progress * 32.0f);
     uint16_t c = rgb565(hwColor);
 
-    for (int y = 32 - hh; y < 32; y++) {
+    for (int y = 32 - h; y < 32; y++) {
       for (int x = 0; x < 64; x++) matrix->drawPixel(x, y, c);
     }
 
@@ -1137,13 +1168,13 @@ void drawPrestart() {
     return;
   }
 
+  // Classic
   String oldSize = hwDigitSize;
   hwDigitSize = "medium";
   drawBitmapTextOverlay(number, 1, false);
   hwDigitSize = oldSize;
   presentFrame();
 }
-
 
 // ============================================================
 // Local animation engine
@@ -1627,8 +1658,8 @@ bool connectWifiInitial() {
 
   WiFi.onEvent(onWiFiEvent);
 
-  addLog("Connexion au Wi-Fi memorise...");
-  WiFi.begin();
+  addLog("Connexion Wi-Fi : " + String(WIFI_SSID));
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   uint32_t started = millis();
 
@@ -1643,7 +1674,7 @@ bool connectWifiInitial() {
     return true;
   }
 
-  addLog("Wi-Fi memorise indisponible");
+  addLog("Wi-Fi initial indisponible");
   return false;
 }
 
@@ -1966,7 +1997,6 @@ void applyConfigArgs() {
   if (server.hasArg("continue_after_zero")) {
     hwContinueAfterZero = server.arg("continue_after_zero") == "1";
   }
-
   if (server.hasArg("brightness")) {
     hwBrightnessPct = (uint8_t)constrain(server.arg("brightness").toInt(), 0, 100);
   }
@@ -2157,6 +2187,56 @@ void handleCommand() {
 }
 
 
+
+void handleModeChange() {
+  addCors();
+
+  String newMode = server.arg("mode");
+  if (!(newMode == "clock" || newMode == "stopwatch" || newMode == "countdown" ||
+        newMode == "deadline" || newMode == "standby" || newMode == "off")) {
+    server.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid mode\"}");
+    return;
+  }
+
+  // Freeze current master state before switching mode.
+  if (hwRunning && (hwMode == "stopwatch" || hwMode == "countdown" || hwMode == "deadline")) {
+    hwBaseMs = localTimerValue();
+  }
+
+  hwMode = newMode;
+  prestartActive = false;
+
+  if (server.hasArg("programmed_ms")) {
+    hwProgrammedMs = parseI64(server.arg("programmed_ms"));
+  }
+
+  int64_t value = 0;
+  if (server.hasArg("value_ms")) value = parseI64(server.arg("value_ms"));
+  else if (newMode == "countdown") value = hwProgrammedMs;
+  else if (newMode == "deadline" && hwDeadlineEpochMs > 0) value = hwDeadlineEpochMs - systemEpochMs();
+
+  hwBaseMs = value;
+  hwAnchorMs = millis();
+  hwRunning = server.hasArg("running") && server.arg("running") == "1";
+
+  if (newMode == "clock" || newMode == "off" || newMode == "standby") {
+    hwRunning = false;
+  }
+
+  resetAnimationPlayback();
+  lastRenderKey = "";
+  bumpState("WEB_MODE");
+  markPrefsDirty();
+
+  addLog("WEB MODE -> " + newMode);
+
+  server.send(
+    200,
+    "application/json",
+    "{\"ok\":true,\"mode\":\"" + newMode + "\",\"state_seq\":" + String(stateSeq) + "}"
+  );
+}
+
 bool allocateAnimationUpload() {
   if (animUploadBuffer) {
     free(animUploadBuffer);
@@ -2299,6 +2379,7 @@ void setupWeb() {
 
   server.on("/api/sync", HTTP_POST, handleSync);
   server.on("/api/command", HTTP_POST, handleCommand);
+  server.on("/api/mode", HTTP_POST, handleModeChange);
   server.on("/api/animation", HTTP_POST, handleAnimationUploadDone, animationUploadChunk);
   server.on("/api/animation/settings", HTTP_POST, handleAnimationSettings);
 
@@ -2473,6 +2554,8 @@ void loop() {
   maintainWifi();
 
   if (!otaActive) {
+    // Remote HTTP polling and HUB75 rendering are intentionally paused during OTA.
+    // This keeps the upload socket responsive and avoids large concurrent workloads.
     pollRemote();
     drawDisplay();
     servicePrefs();
