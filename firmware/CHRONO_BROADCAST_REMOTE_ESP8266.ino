@@ -1808,3 +1808,5 @@ void loop() {
 
   yield();
 }
+
+// GitHub Actions OTA rebuild verification for firmware 1.10.6.
